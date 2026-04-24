@@ -1,21 +1,33 @@
-import { DragEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  ReactNode,
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { printerCatalog, seedUsers } from "./mockData";
+import { PrinterIcon } from "./printerIcons";
 import { specDocuments } from "./specDocuments";
 import type {
   AppView,
+  PartRepositoryItem,
   Role,
-  SpecDocument,
   StationQueueState,
   WorkProject,
+  WorkProjectPriority,
   WorkProjectStatus,
   WorkcenterStation,
   WorkcenterZone,
 } from "./types";
 
-const navItems: { id: AppView; label: string; hint: string }[] = [
-  { id: "workcenter", label: "Workcenter", hint: "Zones, stations, queue" },
-  { id: "fleet", label: "Fleet Library", hint: "Approved printer models" },
-  { id: "specs", label: "Spec Vault", hint: "Source architecture" },
+const navItems: { id: AppView; label: string; caption: string }[] = [
+  { id: "projects", label: "Projects", caption: "Board and execution list" },
+  { id: "repository", label: "Repository", caption: "3D files and part records" },
+  { id: "warehouse", label: "Warehouse", caption: "Printer floor and queue" },
+  { id: "fleet", label: "Fleet", caption: "Approved printer models" },
+  { id: "specs", label: "Specs", caption: "Source package and contracts" },
 ];
 
 const roleLabels: Record<Role, string> = {
@@ -26,11 +38,28 @@ const roleLabels: Record<Role, string> = {
   viewer: "Viewer",
 };
 
+const statusLabels: Record<WorkProjectStatus, string> = {
+  intake: "Intake",
+  ready: "Ready",
+  queued: "Queued",
+  printing: "Printing",
+  qa: "QA",
+  complete: "Complete",
+};
+
+const priorityLabels: Record<WorkProjectPriority, string> = {
+  low: "Low",
+  normal: "Normal",
+  high: "High",
+  rush: "Rush",
+};
+
 const storageKeys = {
-  zones: "vault-core.zones.v2",
-  stations: "vault-core.stations.v2",
-  projects: "vault-core.projects.v2",
-  queues: "vault-core.queues.v2",
+  zones: "vault-core.zones.v3",
+  stations: "vault-core.stations.v3",
+  projects: "vault-core.projects.v3",
+  queues: "vault-core.queues.v3",
+  repository: "vault-core.repository.v1",
 };
 
 const initialZoneForm = {
@@ -46,42 +75,67 @@ const initialStationForm = {
   machineNickname: "",
   bayLabel: "",
   notes: "",
+  stationHealth: "ready" as WorkcenterStation["stationHealth"],
 };
 
 const initialProjectForm = {
   title: "",
   code: "",
   productName: "",
+  clientName: "",
   materialIntent: "",
   fileRevision: "",
+  quantity: "1",
+  dueDate: "",
+  priority: "normal" as WorkProjectPriority,
+  notes: "",
 };
 
-type DragState = {
-  projectId: string;
-  sourceStationId: string | null;
-  sourceLane: "backlog" | "queue";
+const initialRepositoryForm = {
+  title: "",
+  linkedProjectId: "",
+  productName: "",
+  fileName: "",
+  fileRevision: "",
+  material: "",
+  estimatedPrintHours: "0",
+  estimatedCostUsd: "0",
+  quantityPerRun: "1",
+  status: "candidate" as PartRepositoryItem["status"],
+  notes: "",
 };
+
+const projectStatuses: WorkProjectStatus[] = ["intake", "ready", "queued", "printing", "qa", "complete"];
 
 function App() {
-  const [activeView, setActiveView] = useState<AppView>("workcenter");
+  const [activeView, setActiveView] = useState<AppView>("projects");
   const [currentUserId, setCurrentUserId] = useState(seedUsers[0]?.uid ?? "");
   const [zones, setZones] = useState<WorkcenterZone[]>([]);
   const [stations, setStations] = useState<WorkcenterStation[]>([]);
   const [projects, setProjects] = useState<WorkProject[]>([]);
   const [queues, setQueues] = useState<Record<string, StationQueueState>>({});
-  const [selectedZoneId, setSelectedZoneId] = useState("");
+  const [repositoryItems, setRepositoryItems] = useState<PartRepositoryItem[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedRepositoryId, setSelectedRepositoryId] = useState("");
   const [selectedStationId, setSelectedStationId] = useState("");
   const [selectedSpecId, setSelectedSpecId] = useState(specDocuments[0]?.id ?? "");
+  const [projectSearch, setProjectSearch] = useState("");
+  const [repositorySearch, setRepositorySearch] = useState("");
+  const [warehouseSearch, setWarehouseSearch] = useState("");
+  const [fleetSearch, setFleetSearch] = useState("");
   const [showCreateZone, setShowCreateZone] = useState(false);
   const [showCreateStation, setShowCreateStation] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
+  const [showCreateRepository, setShowCreateRepository] = useState(false);
   const [zoneForm, setZoneForm] = useState(initialZoneForm);
   const [stationForm, setStationForm] = useState(initialStationForm);
   const [projectForm, setProjectForm] = useState(initialProjectForm);
-  const [stationSearch, setStationSearch] = useState("");
-  const [fleetSearch, setFleetSearch] = useState("");
-  const [fleetSpotlightIndex, setFleetSpotlightIndex] = useState(0);
-  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [repositoryForm, setRepositoryForm] = useState(initialRepositoryForm);
+
+  const deferredProjectSearch = useDeferredValue(projectSearch);
+  const deferredRepositorySearch = useDeferredValue(repositorySearch);
+  const deferredWarehouseSearch = useDeferredValue(warehouseSearch);
+  const deferredFleetSearch = useDeferredValue(fleetSearch);
 
   const currentUser = seedUsers.find((user) => user.uid === currentUserId) ?? seedUsers[0];
   const selectedSpec = specDocuments.find((doc) => doc.id === selectedSpecId) ?? specDocuments[0];
@@ -91,31 +145,151 @@ function App() {
     [],
   );
   const zoneMap = useMemo(() => Object.fromEntries(zones.map((zone) => [zone.zoneId, zone])), [zones]);
-  const stationMap = useMemo(() => Object.fromEntries(stations.map((station) => [station.stationId, station])), [stations]);
-  const projectMap = useMemo(() => Object.fromEntries(projects.map((project) => [project.projectId, project])), [projects]);
+  const stationMap = useMemo(
+    () => Object.fromEntries(stations.map((station) => [station.stationId, station])),
+    [stations],
+  );
 
+  const selectedProject = projects.find((project) => project.projectId === selectedProjectId) ?? null;
+  const selectedRepositoryItem = repositoryItems.find((item) => item.itemId === selectedRepositoryId) ?? null;
   const selectedStation = stations.find((station) => station.stationId === selectedStationId) ?? null;
-  const selectedStationQueue = selectedStation ? queues[selectedStation.stationId] ?? { activeProjectId: null, queuedProjectIds: [] } : null;
-  const selectedStationPrinter = selectedStation ? printerModelMap[selectedStation.printerModelId] : null;
-  const stationPreviewPrinter = printerModelMap[stationForm.printerModelId] ?? printerCatalog[0];
-  const spotlightPrinter = printerCatalog[fleetSpotlightIndex] ?? printerCatalog[0];
+  const selectedStationQueue = selectedStation
+    ? queues[selectedStation.stationId] ?? { activeProjectId: null, queuedProjectIds: [] }
+    : null;
 
-  const filteredStations = useMemo(() => {
-    const query = stationSearch.trim().toLowerCase();
-    return stations.filter((station) => {
-      const printer = printerModelMap[station.printerModelId];
-      const inZone = !selectedZoneId || station.zoneId === selectedZoneId;
-      const matchesSearch =
-        !query ||
-        [station.stationName, station.machineNickname, station.bayLabel, zoneMap[station.zoneId]?.zoneName, printer?.brand, printer?.model]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query));
-      return inZone && matchesSearch;
+  useEffect(() => {
+    setZones(loadState(storageKeys.zones, []));
+    setStations(loadState(storageKeys.stations, []));
+    setProjects(loadState(storageKeys.projects, []));
+    setQueues(loadState(storageKeys.queues, {}));
+    setRepositoryItems(loadState(storageKeys.repository, []));
+  }, []);
+
+  useEffect(() => persistState(storageKeys.zones, zones), [zones]);
+  useEffect(() => persistState(storageKeys.stations, stations), [stations]);
+  useEffect(() => persistState(storageKeys.projects, projects), [projects]);
+  useEffect(() => persistState(storageKeys.queues, queues), [queues]);
+  useEffect(() => persistState(storageKeys.repository, repositoryItems), [repositoryItems]);
+
+  useEffect(() => {
+    if (!selectedProjectId && projects[0]) {
+      setSelectedProjectId(projects[0].projectId);
+      return;
+    }
+
+    if (selectedProjectId && !projects.some((project) => project.projectId === selectedProjectId)) {
+      setSelectedProjectId(projects[0]?.projectId ?? "");
+    }
+  }, [projects, selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedStationId && stations[0]) {
+      setSelectedStationId(stations[0].stationId);
+      return;
+    }
+
+    if (selectedStationId && !stations.some((station) => station.stationId === selectedStationId)) {
+      setSelectedStationId(stations[0]?.stationId ?? "");
+    }
+  }, [selectedStationId, stations]);
+
+  useEffect(() => {
+    if (!selectedRepositoryId && repositoryItems[0]) {
+      setSelectedRepositoryId(repositoryItems[0].itemId);
+      return;
+    }
+
+    if (selectedRepositoryId && !repositoryItems.some((item) => item.itemId === selectedRepositoryId)) {
+      setSelectedRepositoryId(repositoryItems[0]?.itemId ?? "");
+    }
+  }, [repositoryItems, selectedRepositoryId]);
+
+  const filteredProjects = useMemo(() => {
+    const query = deferredProjectSearch.trim().toLowerCase();
+    if (!query) {
+      return projects;
+    }
+
+    return projects.filter((project) =>
+      [
+        project.title,
+        project.code,
+        project.productName,
+        project.clientName,
+        project.materialIntent,
+        project.fileRevision,
+        stationMap[project.assignedStationId ?? ""]?.stationName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [deferredProjectSearch, projects, stationMap]);
+
+  const projectGroups = useMemo(
+    () =>
+      Object.fromEntries(
+        projectStatuses.map((status) => [status, filteredProjects.filter((project) => project.status === status)]),
+      ) as Record<WorkProjectStatus, WorkProject[]>,
+    [filteredProjects],
+  );
+
+  const filteredRepositoryItems = useMemo(() => {
+    const query = deferredRepositorySearch.trim().toLowerCase();
+    if (!query) {
+      return repositoryItems;
+    }
+
+    return repositoryItems.filter((item) =>
+      [
+        item.title,
+        item.productName,
+        item.fileName,
+        item.fileRevision,
+        item.material,
+        projects.find((project) => project.projectId === item.linkedProjectId)?.code,
+        projects.find((project) => project.projectId === item.linkedProjectId)?.title,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+    );
+  }, [deferredRepositorySearch, projects, repositoryItems]);
+
+  const filteredZones = useMemo(() => {
+    const query = deferredWarehouseSearch.trim().toLowerCase();
+    if (!query) {
+      return zones;
+    }
+
+    return zones.filter((zone) => {
+      const stationMatches = stations
+        .filter((station) => station.zoneId === zone.zoneId)
+        .some((station) =>
+          [
+            station.stationName,
+            station.machineNickname,
+            station.bayLabel,
+            printerModelMap[station.printerModelId]?.brand,
+            printerModelMap[station.printerModelId]?.model,
+          ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes(query),
+        );
+
+      return (
+        stationMatches ||
+        [zone.workcenterName, zone.zoneName, zone.description].join(" ").toLowerCase().includes(query)
+      );
     });
-  }, [printerModelMap, selectedZoneId, stationSearch, stations, zoneMap]);
+  }, [deferredWarehouseSearch, printerModelMap, stations, zones]);
 
   const filteredFleet = useMemo(() => {
-    const query = fleetSearch.trim().toLowerCase();
+    const query = deferredFleetSearch.trim().toLowerCase();
     if (!query) {
       return printerCatalog;
     }
@@ -126,70 +300,55 @@ function App() {
         .toLowerCase()
         .includes(query),
     );
-  }, [fleetSearch]);
+  }, [deferredFleetSearch]);
 
-  const backlogProjects = useMemo(
-    () => projects.filter((project) => project.queueStationId === null && project.status !== "complete"),
-    [projects],
-  );
-
-  const draftProjects = backlogProjects.filter((project) => project.status === "draft");
-  const readyProjects = backlogProjects.filter((project) => project.status === "ready");
-
-  const workcenterMetrics = useMemo(
+  const stats = useMemo(
     () => ({
-      zones: zones.length,
-      stations: stations.length,
-      readyProjects: readyProjects.length,
+      projectCount: projects.length,
+      repositoryCount: repositoryItems.length,
+      readyToSchedule: projects.filter((project) => project.status === "ready").length,
+      livePrinters: stations.filter((station) => (queues[station.stationId]?.activeProjectId ? true : station.stationHealth === "ready")).length,
       activeBuilds: Object.values(queues).filter((queue) => queue.activeProjectId).length,
     }),
-    [queues, readyProjects.length, stations.length, zones.length],
+    [projects, queues, repositoryItems.length, stations],
   );
 
-  useEffect(() => {
-    setZones(loadState(storageKeys.zones, []));
-    setStations(loadState(storageKeys.stations, []));
-    setProjects(loadState(storageKeys.projects, []));
-    setQueues(loadState(storageKeys.queues, {}));
-  }, []);
+  const assignableProjects = projects.filter((project) => project.status === "ready" || project.status === "qa");
 
-  useEffect(() => persistState(storageKeys.zones, zones), [zones]);
-  useEffect(() => persistState(storageKeys.stations, stations), [stations]);
-  useEffect(() => persistState(storageKeys.projects, projects), [projects]);
-  useEffect(() => persistState(storageKeys.queues, queues), [queues]);
-
-  useEffect(() => {
-    if (!selectedZoneId && zones[0]) {
-      setSelectedZoneId(zones[0].zoneId);
-      return;
-    }
-
-    if (selectedZoneId && !zones.some((zone) => zone.zoneId === selectedZoneId)) {
-      setSelectedZoneId(zones[0]?.zoneId ?? "");
-    }
-  }, [selectedZoneId, zones]);
-
-  useEffect(() => {
-    if (selectedStationId && !stations.some((station) => station.stationId === selectedStationId)) {
-      setSelectedStationId("");
-      return;
-    }
-
-    if (!selectedStationId && filteredStations[0]) {
-      setSelectedStationId(filteredStations[0].stationId);
-    }
-  }, [filteredStations, selectedStationId, stations]);
-
-  function cycleSpotlight(direction: "next" | "prev") {
-    setFleetSpotlightIndex((current) => {
-      const next = direction === "next" ? current + 1 : current - 1;
-      return (next + printerCatalog.length) % printerCatalog.length;
+  function openCreateStation(printerModelId?: string, zoneId?: string) {
+    setStationForm({
+      ...initialStationForm,
+      printerModelId: printerModelId ?? initialStationForm.printerModelId,
+      zoneId: zoneId ?? "",
     });
+    setShowCreateStation(true);
+  }
+
+  function openCreateRepository(project?: WorkProject | null) {
+    if (!project) {
+      setRepositoryForm(initialRepositoryForm);
+      setShowCreateRepository(true);
+      return;
+    }
+
+    setRepositoryForm({
+      title: project.title,
+      linkedProjectId: project.projectId,
+      productName: project.productName,
+      fileName: "",
+      fileRevision: project.fileRevision,
+      material: project.materialIntent,
+      estimatedPrintHours: "0",
+      estimatedCostUsd: "0",
+      quantityPerRun: String(project.quantity),
+      status: "candidate",
+      notes: project.notes,
+    });
+    setShowCreateRepository(true);
   }
 
   function createZone(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!zoneForm.workcenterName.trim() || !zoneForm.zoneName.trim()) {
       return;
     }
@@ -202,16 +361,14 @@ function App() {
       createdAt: new Date().toISOString(),
     };
 
-    setZones((current) => [...current, newZone]);
-    setSelectedZoneId(newZone.zoneId);
+    setZones((current) => [newZone, ...current]);
     setZoneForm(initialZoneForm);
-    setShowCreateZone(false);
     setStationForm((current) => ({ ...current, zoneId: newZone.zoneId }));
+    setShowCreateZone(false);
   }
 
   function createStation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!stationForm.stationName.trim() || !stationForm.zoneId || !stationForm.printerModelId) {
       return;
     }
@@ -225,6 +382,7 @@ function App() {
       machineNickname: stationForm.machineNickname.trim() || selectedModel.model,
       bayLabel: stationForm.bayLabel.trim(),
       notes: stationForm.notes.trim(),
+      stationHealth: stationForm.stationHealth,
       createdAt: new Date().toISOString(),
       createdByUid: currentUser.uid,
     };
@@ -234,37 +392,102 @@ function App() {
       ...current,
       [newStation.stationId]: { activeProjectId: null, queuedProjectIds: [] },
     }));
-    setSelectedStationId(newStation.stationId);
+    startTransition(() => setSelectedStationId(newStation.stationId));
     setShowCreateStation(false);
-    setStationForm({ ...initialStationForm, zoneId: stationForm.zoneId });
+    setStationForm(initialStationForm);
   }
 
   function createProject(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
     if (!projectForm.title.trim() || !projectForm.code.trim()) {
       return;
     }
 
-    const status: WorkProjectStatus =
-      projectForm.materialIntent.trim() && projectForm.fileRevision.trim() ? "ready" : "draft";
-
+    const hasManufacturingData = Boolean(projectForm.materialIntent.trim() && projectForm.fileRevision.trim());
     const newProject: WorkProject = {
       projectId: `project_${Date.now()}`,
       title: projectForm.title.trim(),
       code: projectForm.code.trim(),
       productName: projectForm.productName.trim(),
+      clientName: projectForm.clientName.trim(),
       materialIntent: projectForm.materialIntent.trim(),
       fileRevision: projectForm.fileRevision.trim(),
-      status,
+      quantity: Math.max(1, Number(projectForm.quantity) || 1),
+      dueDate: projectForm.dueDate,
+      priority: projectForm.priority,
+      notes: projectForm.notes.trim(),
+      status: hasManufacturingData ? "ready" : "intake",
       ownerUid: currentUser.uid,
       createdAt: new Date().toISOString(),
-      queueStationId: null,
+      assignedStationId: null,
     };
 
     setProjects((current) => [newProject, ...current]);
+    startTransition(() => setSelectedProjectId(newProject.projectId));
     setProjectForm(initialProjectForm);
     setShowCreateProject(false);
+  }
+
+  function createRepositoryItem(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!repositoryForm.title.trim() || !repositoryForm.fileName.trim()) {
+      return;
+    }
+
+    const newItem: PartRepositoryItem = {
+      itemId: `part_${Date.now()}`,
+      title: repositoryForm.title.trim(),
+      linkedProjectId: repositoryForm.linkedProjectId || null,
+      productName: repositoryForm.productName.trim(),
+      fileName: repositoryForm.fileName.trim(),
+      fileRevision: repositoryForm.fileRevision.trim(),
+      material: repositoryForm.material.trim(),
+      estimatedPrintHours: Math.max(0, Number(repositoryForm.estimatedPrintHours) || 0),
+      estimatedCostUsd: Math.max(0, Number(repositoryForm.estimatedCostUsd) || 0),
+      quantityPerRun: Math.max(1, Number(repositoryForm.quantityPerRun) || 1),
+      status: repositoryForm.status,
+      notes: repositoryForm.notes.trim(),
+      createdAt: new Date().toISOString(),
+      createdByUid: currentUser.uid,
+    };
+
+    setRepositoryItems((current) => [newItem, ...current]);
+    startTransition(() => setSelectedRepositoryId(newItem.itemId));
+    setRepositoryForm(initialRepositoryForm);
+    setShowCreateRepository(false);
+  }
+
+  function updateProjectField<K extends keyof WorkProject>(projectId: string, field: K, value: WorkProject[K]) {
+    setProjects((current) =>
+      current.map((project) => {
+        if (project.projectId !== projectId) {
+          return project;
+        }
+
+        const nextProject = { ...project, [field]: value };
+        const hasManufacturingData = Boolean(nextProject.materialIntent.trim() && nextProject.fileRevision.trim());
+
+        if (nextProject.status === "intake" && hasManufacturingData) {
+          nextProject.status = "ready";
+        }
+
+        if (nextProject.status === "ready" && !hasManufacturingData) {
+          nextProject.status = "intake";
+        }
+
+        return nextProject;
+      }),
+    );
+  }
+
+  function updateRepositoryField<K extends keyof PartRepositoryItem>(
+    itemId: string,
+    field: K,
+    value: PartRepositoryItem[K],
+  ) {
+    setRepositoryItems((current) =>
+      current.map((item) => (item.itemId === itemId ? { ...item, [field]: value } : item)),
+    );
   }
 
   function updateStationField<K extends keyof WorkcenterStation>(stationId: string, field: K, value: WorkcenterStation[K]) {
@@ -273,70 +496,44 @@ function App() {
     );
   }
 
-  function deleteZone(zoneId: string) {
-    const stationIdsInZone = stations.filter((station) => station.zoneId === zoneId).map((station) => station.stationId);
+  function removeProjectFromQueues(nextQueues: Record<string, StationQueueState>, projectId: string) {
+    for (const stationId of Object.keys(nextQueues)) {
+      const queue = nextQueues[stationId];
+      nextQueues[stationId] = {
+        activeProjectId: queue.activeProjectId === projectId ? null : queue.activeProjectId,
+        queuedProjectIds: queue.queuedProjectIds.filter((queuedId) => queuedId !== projectId),
+      };
+    }
+  }
 
-    setZones((current) => current.filter((zone) => zone.zoneId !== zoneId));
-    setStations((current) => current.filter((station) => station.zoneId !== zoneId));
+  function assignProjectToStation(projectId: string, stationId: string) {
     setQueues((current) => {
-      const next = { ...current };
-      for (const stationId of stationIdsInZone) {
-        delete next[stationId];
+      if (current[stationId]?.activeProjectId === projectId || current[stationId]?.queuedProjectIds.includes(projectId)) {
+        return current;
       }
-      return next;
+
+      const nextQueues = structuredClone(current);
+      removeProjectFromQueues(nextQueues, projectId);
+      const queue = nextQueues[stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
+      if (!queue.queuedProjectIds.includes(projectId) && queue.activeProjectId !== projectId) {
+        queue.queuedProjectIds.push(projectId);
+      }
+      nextQueues[stationId] = queue;
+      return nextQueues;
     });
+
     setProjects((current) =>
       current.map((project) =>
-        project.queueStationId && stationIdsInZone.includes(project.queueStationId)
-          ? { ...project, queueStationId: null, status: project.status === "complete" ? "complete" : "ready" }
-          : project,
+        project.projectId === projectId ? { ...project, assignedStationId: stationId, status: "queued" } : project,
       ),
     );
   }
 
-  function deleteStation(stationId: string) {
-    const queue = queues[stationId];
-    const affectedProjectIds = unique([
-      queue?.activeProjectId ?? undefined,
-      ...(queue?.queuedProjectIds ?? []),
-    ]).filter(Boolean) as string[];
-
-    setStations((current) => current.filter((station) => station.stationId !== stationId));
+  function unassignProject(projectId: string) {
     setQueues((current) => {
-      const next = { ...current };
-      delete next[stationId];
-      return next;
-    });
-    setProjects((current) =>
-      current.map((project) =>
-        affectedProjectIds.includes(project.projectId)
-          ? { ...project, queueStationId: null, status: project.status === "complete" ? "complete" : "ready" }
-          : project,
-      ),
-    );
-  }
-
-  function assignProjectToStation(stationId: string, projectId: string, targetIndex?: number) {
-    setQueues((current) => {
-      const next = structuredClone(current);
-
-      for (const [candidateStationId, queue] of Object.entries(next)) {
-        if (queue.activeProjectId === projectId) {
-          queue.activeProjectId = null;
-        }
-        queue.queuedProjectIds = queue.queuedProjectIds.filter((queuedId) => queuedId !== projectId);
-        next[candidateStationId] = queue;
-      }
-
-      const stationQueue = next[stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
-      const insertionIndex =
-        typeof targetIndex === "number"
-          ? Math.max(0, Math.min(targetIndex, stationQueue.queuedProjectIds.length))
-          : stationQueue.queuedProjectIds.length;
-
-      stationQueue.queuedProjectIds.splice(insertionIndex, 0, projectId);
-      next[stationId] = stationQueue;
-      return next;
+      const nextQueues = structuredClone(current);
+      removeProjectFromQueues(nextQueues, projectId);
+      return nextQueues;
     });
 
     setProjects((current) =>
@@ -344,24 +541,24 @@ function App() {
         project.projectId === projectId
           ? {
               ...project,
-              queueStationId: stationId,
-              status: project.status === "complete" ? "complete" : "queued",
+              assignedStationId: null,
+              status: project.fileRevision && project.materialIntent ? "ready" : "intake",
             }
           : project,
       ),
     );
   }
 
-  function promoteProjectToActive(stationId: string, projectId: string) {
+  function startQueuedProject(stationId: string, projectId: string) {
     setQueues((current) => {
       const queue = current[stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
       const nextQueued = queue.queuedProjectIds.filter((queuedId) => queuedId !== projectId);
-      const demotedActive = queue.activeProjectId && queue.activeProjectId !== projectId ? [queue.activeProjectId] : [];
+      const demoted = queue.activeProjectId && queue.activeProjectId !== projectId ? [queue.activeProjectId] : [];
       return {
         ...current,
         [stationId]: {
           activeProjectId: projectId,
-          queuedProjectIds: [...demotedActive, ...nextQueued],
+          queuedProjectIds: [...demoted, ...nextQueued],
         },
       };
     });
@@ -369,9 +566,9 @@ function App() {
     setProjects((current) =>
       current.map((project) => {
         if (project.projectId === projectId) {
-          return { ...project, queueStationId: stationId, status: "printing" };
+          return { ...project, assignedStationId: stationId, status: "printing" };
         }
-        if (project.queueStationId === stationId && project.status === "printing") {
+        if (project.assignedStationId === stationId && project.status === "printing") {
           return { ...project, status: "queued" };
         }
         return project;
@@ -379,30 +576,31 @@ function App() {
     );
   }
 
-  function sendActiveBackToQueue(stationId: string) {
-    const queue = queues[stationId];
-    if (!queue?.activeProjectId) {
-      return;
-    }
+  function moveQueuedProject(stationId: string, projectId: string, direction: -1 | 1) {
+    setQueues((current) => {
+      const queue = current[stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
+      const index = queue.queuedProjectIds.indexOf(projectId);
+      if (index === -1) {
+        return current;
+      }
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= queue.queuedProjectIds.length) {
+        return current;
+      }
 
-    const activeProjectId = queue.activeProjectId;
-
-    setQueues((current) => ({
-      ...current,
-      [stationId]: {
-        activeProjectId: null,
-        queuedProjectIds: [activeProjectId, ...(current[stationId]?.queuedProjectIds ?? [])],
-      },
-    }));
-
-    setProjects((current) =>
-      current.map((project) =>
-        project.projectId === activeProjectId ? { ...project, status: "queued", queueStationId: stationId } : project,
-      ),
-    );
+      const nextQueued = [...queue.queuedProjectIds];
+      [nextQueued[index], nextQueued[nextIndex]] = [nextQueued[nextIndex], nextQueued[index]];
+      return {
+        ...current,
+        [stationId]: {
+          activeProjectId: queue.activeProjectId,
+          queuedProjectIds: nextQueued,
+        },
+      };
+    });
   }
 
-  function completeActiveProject(stationId: string) {
+  function sendActiveToQa(stationId: string) {
     const queue = queues[stationId];
     if (!queue?.activeProjectId) {
       return;
@@ -420,462 +618,359 @@ function App() {
 
     setProjects((current) =>
       current.map((project) =>
-        project.projectId === activeProjectId ? { ...project, status: "complete", queueStationId: stationId } : project,
+        project.projectId === activeProjectId ? { ...project, status: "qa", assignedStationId: stationId } : project,
       ),
     );
   }
 
-  function removeQueuedProject(stationId: string, projectId: string) {
-    setQueues((current) => ({
-      ...current,
-      [stationId]: {
-        activeProjectId: current[stationId]?.activeProjectId ?? null,
-        queuedProjectIds: (current[stationId]?.queuedProjectIds ?? []).filter((queuedId) => queuedId !== projectId),
-      },
-    }));
+  function markProjectComplete(projectId: string) {
+    setQueues((current) => {
+      const nextQueues = structuredClone(current);
+      removeProjectFromQueues(nextQueues, projectId);
+      return nextQueues;
+    });
 
     setProjects((current) =>
+      current.map((project) => (project.projectId === projectId ? { ...project, status: "complete" } : project)),
+    );
+  }
+
+  function reopenProject(projectId: string) {
+    setProjects((current) =>
+      current.map((project) => {
+        if (project.projectId !== projectId) {
+          return project;
+        }
+        return {
+          ...project,
+          status: project.fileRevision && project.materialIntent ? "ready" : "intake",
+        };
+      }),
+    );
+  }
+
+  function deleteZone(zoneId: string) {
+    const stationIds = stations.filter((station) => station.zoneId === zoneId).map((station) => station.stationId);
+
+    setZones((current) => current.filter((zone) => zone.zoneId !== zoneId));
+    setStations((current) => current.filter((station) => station.zoneId !== zoneId));
+    setQueues((current) => {
+      const next = { ...current };
+      for (const stationId of stationIds) {
+        delete next[stationId];
+      }
+      return next;
+    });
+    setProjects((current) =>
       current.map((project) =>
-        project.projectId === projectId ? { ...project, queueStationId: null, status: "ready" } : project,
+        project.assignedStationId && stationIds.includes(project.assignedStationId)
+          ? {
+              ...project,
+              assignedStationId: null,
+              status: project.fileRevision && project.materialIntent ? "ready" : "intake",
+            }
+          : project,
       ),
     );
   }
 
-  function handleDragStart(event: DragEvent<HTMLElement>, payload: DragState) {
-    setDragState(payload);
-    event.dataTransfer.effectAllowed = "move";
-  }
-
-  function handleQueueDrop(stationId: string, targetIndex?: number) {
-    if (!dragState) {
-      return;
+  function warehouseActivity(station: WorkcenterStation) {
+    const queue = queues[station.stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
+    if (station.stationHealth === "maintenance") {
+      return { label: "Maintenance", tone: "maintenance" as const };
     }
-
-    assignProjectToStation(stationId, dragState.projectId, targetIndex);
-    setDragState(null);
+    if (station.stationHealth === "offline") {
+      return { label: "Offline", tone: "offline" as const };
+    }
+    if (queue.activeProjectId) {
+      return { label: "Printing", tone: "printing" as const };
+    }
+    if (queue.queuedProjectIds.length) {
+      return { label: "Queued", tone: "queued" as const };
+    }
+    return { label: "Ready", tone: "ready" as const };
   }
 
-  function statusTone(status: WorkProjectStatus) {
-    if (status === "printing") return "printing";
-    if (status === "queued") return "queued";
-    if (status === "complete") return "complete";
-    return status === "ready" ? "ready" : "draft";
-  }
-
-  function renderWorkcenter() {
+  function renderProjectsView() {
     return (
-      <div className="view-stack">
-        <section className="hero-shell">
-          <div className="hero-copy">
-            <p className="eyebrow">Vault Core</p>
-            <h1>Run the floor by station, not by spreadsheet.</h1>
-            <p>
-              Workcenters own the physical room, zones organize the machine clusters, stations represent real installed
-              printers, and every queued build flows through that chain with explicit operator visibility.
+      <div className="page-stack">
+        <section className="page-header">
+          <div>
+            <p className="section-kicker">Program board</p>
+            <h2>Projects become printable only when product, material, revision, and station all line up.</h2>
+            <p className="section-copy">
+              This workspace tracks engineering projects rather than sold inventory. The product record lives inside the
+              project so every printed unit inherits the correct file revision, material intent, and printer assignment.
             </p>
-            <div className="hero-actions">
-              <button className="primary-action" onClick={() => setShowCreateZone(true)}>
-                Create zone
-              </button>
-              <button className="ghost-action" onClick={() => setShowCreateProject(true)}>
-                Intake project
-              </button>
-            </div>
           </div>
-
-          <div className="hero-sidecard">
-            <MetricBlock label="Zones" value={String(workcenterMetrics.zones)} />
-            <MetricBlock label="Stations" value={String(workcenterMetrics.stations)} />
-            <MetricBlock label="Ready projects" value={String(workcenterMetrics.readyProjects)} />
-            <MetricBlock label="Active builds" value={String(workcenterMetrics.activeBuilds)} />
-          </div>
-        </section>
-
-        <section className="spotlight-shell">
-          <div className="spotlight-copy">
-            <p className="eyebrow">Fleet spotlight</p>
-            <h2>{spotlightPrinter.brand} {spotlightPrinter.model}</h2>
-            <p>
-              This catalog remains the source of truth for printable hardware. Operators create stations from this
-              library, then build queue state lives at the station layer.
-            </p>
-            <div className="tag-row">
-              {spotlightPrinter.capabilityFlags.map((flag) => (
-                <span key={flag} className="capability-tag">
-                  {flag}
-                </span>
-              ))}
-            </div>
-          </div>
-
-          <div className="spotlight-stage">
-            <button className="slider-button" onClick={() => cycleSpotlight("prev")} aria-label="Previous printer">
-              ‹
+          <div className="header-actions">
+            <button className="secondary-button" onClick={() => setShowCreateZone(true)}>
+              Create zone
             </button>
-            <div className={`silhouette-frame spotlight-card ${spotlightPrinter.printerType}`}>
-              <div className="silhouette-label">{spotlightPrinter.technology}</div>
-              <strong>{spotlightPrinter.model}</strong>
-              <span className="spotlight-dimensions">{spotlightPrinter.buildVolume.join(" x ")} mm</span>
-            </div>
-            <button className="slider-button" onClick={() => cycleSpotlight("next")} aria-label="Next printer">
-              ›
+            <button className="secondary-button" onClick={() => setShowCreateStation(true)}>
+              Add printer station
+            </button>
+            <button className="secondary-button" onClick={() => openCreateRepository(selectedProject)}>
+              Promote to repository
+            </button>
+            <button className="primary-button" onClick={() => setShowCreateProject(true)}>
+              New project
             </button>
           </div>
         </section>
 
-        <section className="workcenter-grid">
-          <aside className="zone-rail">
-            <div className="rail-head">
-              <div>
-                <p className="eyebrow">Workcenter map</p>
-                <h2>Zones</h2>
-              </div>
-              <button className="ghost-mini" onClick={() => setShowCreateZone(true)}>
-                + Zone
-              </button>
-            </div>
+        <section className="metric-row">
+          <MetricCard label="Projects" value={String(stats.projectCount)} tone="blue" />
+          <MetricCard label="Ready to schedule" value={String(stats.readyToSchedule)} tone="green" />
+          <MetricCard label="Live printers" value={String(stats.livePrinters)} tone="purple" />
+          <MetricCard label="Active builds" value={String(stats.activeBuilds)} tone="amber" />
+        </section>
 
-            <div className="zone-list">
-              {zones.length ? (
-                zones.map((zone) => (
-                  <button
-                    key={zone.zoneId}
-                    className={`zone-card ${selectedZoneId === zone.zoneId ? "active" : ""}`}
-                    onClick={() => setSelectedZoneId(zone.zoneId)}
-                  >
-                    <strong>{zone.zoneName}</strong>
-                    <span>{zone.workcenterName}</span>
-                    {zone.description ? <p>{zone.description}</p> : null}
-                    <div className="zone-card-foot">
-                      <small>{stations.filter((station) => station.zoneId === zone.zoneId).length} stations</small>
-                      <span
-                        className="zone-delete"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteZone(zone.zoneId);
-                        }}
+        <section className="panel board-panel">
+          <div className="panel-head">
+            <div>
+              <p className="section-kicker">Status board</p>
+              <h3>Monday-style execution lanes</h3>
+            </div>
+            <div className="search-shell board-search">
+              <label htmlFor="project-search">Search projects</label>
+              <input
+                id="project-search"
+                className="field"
+                value={projectSearch}
+                onChange={(event) => setProjectSearch(event.target.value)}
+                placeholder="Code, product, client, material, station"
+              />
+            </div>
+          </div>
+
+          <div className="board-lanes">
+            {projectStatuses.map((status) => (
+              <div key={status} className={`board-column ${status}`}>
+                <div className="board-column-head">
+                  <span className={`status-pill ${status}`}>{statusLabels[status]}</span>
+                  <strong>{projectGroups[status].length}</strong>
+                </div>
+                <div className="board-column-body">
+                  {projectGroups[status].length ? (
+                    projectGroups[status].map((project) => (
+                      <button
+                        key={project.projectId}
+                        className={`board-project ${selectedProjectId === project.projectId ? "selected" : ""}`}
+                        onClick={() => startTransition(() => setSelectedProjectId(project.projectId))}
                       >
-                        Remove
-                      </span>
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="empty-rail-card">
-                  <strong>No zones yet</strong>
-                  <p>Define the physical work areas first.</p>
+                        <div className="board-project-top">
+                          <strong>{project.title}</strong>
+                          <span className={`priority-chip ${project.priority}`}>{priorityLabels[project.priority]}</span>
+                        </div>
+                        <span>{project.code}</span>
+                        <p>{project.productName || "Product not named yet"}</p>
+                        <div className="board-project-meta">
+                          <span>{project.materialIntent || "Material pending"}</span>
+                          <span>{stationMap[project.assignedStationId ?? ""]?.stationName ?? "Unassigned"}</span>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="empty-lane">No projects in {statusLabels[status].toLowerCase()}.</div>
+                  )}
                 </div>
-              )}
-            </div>
-          </aside>
-
-          <section className="operations-stage">
-            <div className="command-bar">
-              <div className="field-wrap grow">
-                <label htmlFor="station-search">Search stations</label>
-                <input
-                  id="station-search"
-                  className="field"
-                  value={stationSearch}
-                  onChange={(event) => setStationSearch(event.target.value)}
-                  placeholder="Station, printer, bay, zone"
-                />
               </div>
-              <button
-                className="primary-action"
-                onClick={() => {
-                  if (!zones.length) {
-                    setShowCreateZone(true);
-                    return;
-                  }
-                  setStationForm((current) => ({ ...current, zoneId: selectedZoneId || zones[0].zoneId }));
-                  setShowCreateStation(true);
-                }}
-              >
-                Create station
-              </button>
+            ))}
+          </div>
+        </section>
+
+        <section className="operations-grid">
+          <div className="panel table-panel">
+            <div className="panel-head">
+              <div>
+                <p className="section-kicker">Execution list</p>
+                <h3>Projects and products</h3>
+              </div>
             </div>
 
-            <div className="stations-board">
-              {filteredStations.length ? (
-                filteredStations.map((station) => {
-                  const printer = printerModelMap[station.printerModelId];
-                  const queue = queues[station.stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
-                  const activeProject = queue.activeProjectId ? projectMap[queue.activeProjectId] : null;
-                  return (
-                    <article
-                      key={station.stationId}
-                      className={`station-card ${selectedStationId === station.stationId ? "selected" : ""}`}
-                      onClick={() => setSelectedStationId(station.stationId)}
-                    >
-                      <div className="station-topline">
-                        <div>
-                          <p className="card-kicker">{zoneMap[station.zoneId]?.zoneName ?? "Unassigned zone"}</p>
-                          <h3>{station.stationName}</h3>
-                        </div>
-                        <span className={`printer-chip ${printer.printerType}`}>{printer.printerType.toUpperCase()}</span>
-                      </div>
-
-                      <div className={`silhouette-frame compact ${printer.printerType}`}>
-                        <div className="silhouette-label">{printer.brand}</div>
-                        <strong>{station.machineNickname}</strong>
-                      </div>
-
-                      <div className="station-meta">
-                        <MetaPair label="Model" value={printer.model} />
-                        <MetaPair label="Bay" value={station.bayLabel || "Not set"} />
-                      </div>
-
-                      <div className="lane-summary">
-                        <div className="lane-stat">
-                          <span>Active</span>
-                          <strong>{activeProject?.code ?? "None"}</strong>
-                        </div>
-                        <div className="lane-stat">
-                          <span>Queued</span>
-                          <strong>{queue.queuedProjectIds.length}</strong>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })
-              ) : (
-                <div className="empty-state compact">
-                  <p className="eyebrow">No stations in scope</p>
-                  <h2>Create the first station in this zone.</h2>
-                  <button className="primary-action" onClick={() => setShowCreateStation(true)} disabled={!zones.length}>
-                    New station
-                  </button>
+            {filteredProjects.length ? (
+              <div className="project-table">
+                <div className="table-head">
+                  <span>Project</span>
+                  <span>Status</span>
+                  <span>Product</span>
+                  <span>Material</span>
+                  <span>Revision</span>
+                  <span>Due</span>
+                  <span>Printer</span>
                 </div>
-              )}
-            </div>
-
-            <div className="blueprint-grid">
-              <BlueprintCard
-                eyebrow="Queue model"
-                title="How the print queue works"
-                items={[
-                  "Projects begin in intake and only become queue-ready after they include a revision and material intent.",
-                  "A build is queued against a station, not a generic printer type, so the system mirrors the actual floor.",
-                  "Each station exposes one active slot and an ordered backlog lane that can be reprioritized by drag and drop.",
-                  "Completing a build clears the active slot and preserves the project as a manufacturing event tied to that station.",
-                ]}
-              />
-              <BlueprintCard
-                eyebrow="Product model"
-                title="How we manage products"
-                items={[
-                  "This platform does not manage storefront products. The source of truth is the engineering project and its controlled manufacturing definition.",
-                  "A project captures the product name, code, intended material, and current `.3mf` revision instead of pretending it is an ecommerce SKU.",
-                  "When a build runs, the software links the output to the exact project, file revision, station, and material used.",
-                  "If customer-facing products come later, they should map into this project layer rather than replace it.",
-                ]}
-              />
-            </div>
-          </section>
-
-          <aside className="detail-rail">
-            {selectedStation && selectedStationQueue && selectedStationPrinter ? (
-              <>
-                <div className="rail-head">
-                  <div>
-                    <p className="eyebrow">Station detail</p>
-                    <h2>{selectedStation.stationName}</h2>
-                  </div>
-                  <button className="danger-link" onClick={() => deleteStation(selectedStation.stationId)}>
-                    Remove station
-                  </button>
-                </div>
-
-                <section className="detail-card">
-                  <div className="form-grid single">
-                    <Field
-                      label="Station name"
-                      value={selectedStation.stationName}
-                      onChange={(value) => updateStationField(selectedStation.stationId, "stationName", value)}
-                      placeholder="Station name"
-                    />
-                    <Field
-                      label="Machine nickname"
-                      value={selectedStation.machineNickname}
-                      onChange={(value) => updateStationField(selectedStation.stationId, "machineNickname", value)}
-                      placeholder="Machine nickname"
-                    />
-                    <Field
-                      label="Bay label"
-                      value={selectedStation.bayLabel}
-                      onChange={(value) => updateStationField(selectedStation.stationId, "bayLabel", value)}
-                      placeholder="Bay label"
-                    />
-                  </div>
-
-                  <div className={`silhouette-frame morph-preview ${selectedStationPrinter.printerType}`}>
-                    <div className="silhouette-label">{selectedStationPrinter.brand}</div>
-                    <strong>{selectedStationPrinter.model}</strong>
-                    <span className="spotlight-dimensions">{selectedStationPrinter.buildVolume.join(" x ")} mm build volume</span>
-                  </div>
-
-                  <div className="field-wrap">
-                    <label htmlFor="station-notes-edit">Station notes</label>
-                    <textarea
-                      id="station-notes-edit"
-                      className="field textarea"
-                      value={selectedStation.notes}
-                      onChange={(event) => updateStationField(selectedStation.stationId, "notes", event.target.value)}
-                      placeholder="Maintenance posture, nozzle state, access, shop-floor instructions"
-                    />
-                  </div>
-                </section>
-
-                <section className="queue-card">
-                  <div className="queue-card-head">
-                    <div>
-                      <p className="eyebrow">Active lane</p>
-                      <h3>Now printing</h3>
-                    </div>
-                    {selectedStationQueue.activeProjectId ? (
-                      <div className="inline-actions">
-                        <button className="ghost-mini" onClick={() => sendActiveBackToQueue(selectedStation.stationId)}>
-                          Pause back to queue
-                        </button>
-                        <button className="primary-mini" onClick={() => completeActiveProject(selectedStation.stationId)}>
-                          Complete
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="active-lane">
-                    {selectedStationQueue.activeProjectId ? (
-                      <ProjectCard
-                        project={projectMap[selectedStationQueue.activeProjectId]}
-                        tone={statusTone(projectMap[selectedStationQueue.activeProjectId].status)}
-                      />
-                    ) : (
-                      <div className="lane-empty">
-                        <strong>No active build</strong>
-                        <p>Promote a queued project to start the live station slot.</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="queue-card-head secondary">
-                    <div>
-                      <p className="eyebrow">Queue lane</p>
-                      <h3>Drag to reprioritize</h3>
-                    </div>
-                  </div>
-
-                  <div
-                    className="queue-lane"
-                    onDragOver={(event) => event.preventDefault()}
-                    onDrop={() => handleQueueDrop(selectedStation.stationId)}
+                {filteredProjects.map((project) => (
+                  <button
+                    key={project.projectId}
+                    className={`table-row ${selectedProjectId === project.projectId ? "selected" : ""}`}
+                    onClick={() => startTransition(() => setSelectedProjectId(project.projectId))}
                   >
-                    {selectedStationQueue.queuedProjectIds.length ? (
-                      selectedStationQueue.queuedProjectIds.map((projectId, index) => (
-                        <div
-                          key={projectId}
-                          className="queue-wrapper"
-                          onDragOver={(event) => event.preventDefault()}
-                          onDrop={() => handleQueueDrop(selectedStation.stationId, index)}
-                        >
-                          <ProjectCard
-                            project={projectMap[projectId]}
-                            draggable
-                            tone={statusTone(projectMap[projectId].status)}
-                            onDragStart={(event) =>
-                              handleDragStart(event, {
-                                projectId,
-                                sourceStationId: selectedStation.stationId,
-                                sourceLane: "queue",
-                              })
-                            }
-                            footer={
-                              <div className="inline-actions">
-                                <button className="primary-mini" onClick={() => promoteProjectToActive(selectedStation.stationId, projectId)}>
-                                  Launch active
-                                </button>
-                                <button className="ghost-mini" onClick={() => removeQueuedProject(selectedStation.stationId, projectId)}>
-                                  Remove
-                                </button>
-                              </div>
-                            }
-                          />
-                        </div>
-                      ))
-                    ) : (
-                      <div className="lane-empty">
-                        <strong>Queue is empty</strong>
-                        <p>Drop a ready project here from intake to stage work for this station.</p>
-                      </div>
-                    )}
-                  </div>
-                </section>
+                    <span>
+                      <strong>{project.title}</strong>
+                      <em>{project.code}</em>
+                    </span>
+                    <span>
+                      <span className={`status-pill ${project.status}`}>{statusLabels[project.status]}</span>
+                    </span>
+                    <span>{project.productName || "Pending"}</span>
+                    <span>{project.materialIntent || "Pending"}</span>
+                    <span>{project.fileRevision || "Pending"}</span>
+                    <span>{project.dueDate || "Not set"}</span>
+                    <span>{stationMap[project.assignedStationId ?? ""]?.stationName ?? "Unassigned"}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                title="No projects yet"
+                body="Use project intake to create your first manufacturing record. Once material and revision are present, the project can move into the print queue."
+              />
+            )}
+          </div>
 
-                <section className="queue-card">
-                  <div className="queue-card-head secondary">
-                    <div>
-                      <p className="eyebrow">Project intake</p>
-                      <h3>Ready to queue</h3>
-                    </div>
-                    <button className="ghost-mini" onClick={() => setShowCreateProject(true)}>
-                      New project
+          <aside className="panel detail-panel">
+            {selectedProject ? (
+              <>
+                <div className="panel-head">
+                  <div>
+                    <p className="section-kicker">Project detail</p>
+                    <h3>{selectedProject.title}</h3>
+                  </div>
+                  <span className={`status-pill ${selectedProject.status}`}>{statusLabels[selectedProject.status]}</span>
+                </div>
+
+                <div className="detail-grid">
+                  <Field
+                    label="Project title"
+                    value={selectedProject.title}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "title", value)}
+                    placeholder="Project title"
+                  />
+                  <Field
+                    label="Project code"
+                    value={selectedProject.code}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "code", value)}
+                    placeholder="PF-2401"
+                  />
+                  <Field
+                    label="Product / part"
+                    value={selectedProject.productName}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "productName", value)}
+                    placeholder="Jig base assembly"
+                  />
+                  <Field
+                    label="Client"
+                    value={selectedProject.clientName}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "clientName", value)}
+                    placeholder="Customer or internal team"
+                  />
+                  <Field
+                    label="Material"
+                    value={selectedProject.materialIntent}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "materialIntent", value)}
+                    placeholder="PETG-HS / ASA / Siraya Blu"
+                  />
+                  <Field
+                    label="File revision"
+                    value={selectedProject.fileRevision}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "fileRevision", value)}
+                    placeholder="r3 approved"
+                  />
+                  <Field
+                    label="Due date"
+                    type="date"
+                    value={selectedProject.dueDate}
+                    onChange={(value) => updateProjectField(selectedProject.projectId, "dueDate", value)}
+                    placeholder=""
+                  />
+                  <Field
+                    label="Quantity"
+                    type="number"
+                    value={String(selectedProject.quantity)}
+                    onChange={(value) =>
+                      updateProjectField(selectedProject.projectId, "quantity", Math.max(1, Number(value) || 1))
+                    }
+                    placeholder="1"
+                  />
+                  <SelectField
+                    label="Priority"
+                    value={selectedProject.priority}
+                    onChange={(value) =>
+                      updateProjectField(selectedProject.projectId, "priority", value as WorkProjectPriority)
+                    }
+                    options={Object.entries(priorityLabels).map(([value, label]) => ({ value, label }))}
+                  />
+                  <SelectField
+                    label="Assigned printer"
+                    value={selectedProject.assignedStationId ?? ""}
+                    onChange={(value) => {
+                      if (!value) {
+                        unassignProject(selectedProject.projectId);
+                        return;
+                      }
+                      assignProjectToStation(selectedProject.projectId, value);
+                    }}
+                    options={[
+                      { value: "", label: "Unassigned" },
+                      ...stations.map((station) => ({
+                        value: station.stationId,
+                        label: `${station.stationName} · ${printerModelMap[station.printerModelId].brand} ${printerModelMap[station.printerModelId].model}`,
+                      })),
+                    ]}
+                  />
+                </div>
+
+                <TextAreaField
+                  label="Operator and engineering notes"
+                  value={selectedProject.notes}
+                  onChange={(value) => updateProjectField(selectedProject.projectId, "notes", value)}
+                  placeholder="Print intent, support notes, finish requirements, tolerances"
+                />
+
+                <div className="detail-callout">
+                  <strong>How products are managed</strong>
+                  <p>
+                    The project is the operational container. The product name inside the project is the printable part
+                    definition, and every finished print can be traced back to its exact material, file revision, and
+                    assigned printer station.
+                  </p>
+                </div>
+
+                <div className="action-row">
+                  <button className="secondary-button" onClick={() => openCreateRepository(selectedProject)}>
+                    Create part record
+                  </button>
+                  {selectedProject.status === "intake" && selectedProject.materialIntent && selectedProject.fileRevision ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => updateProjectField(selectedProject.projectId, "status", "ready")}
+                    >
+                      Mark ready
                     </button>
-                  </div>
-
-                  <div className="intake-columns">
-                    <div className="intake-column">
-                      <h4>Ready</h4>
-                      {readyProjects.length ? (
-                        readyProjects.map((project) => (
-                          <ProjectCard
-                            key={project.projectId}
-                            project={project}
-                            draggable
-                            tone="ready"
-                            onDragStart={(event) =>
-                              handleDragStart(event, {
-                                projectId: project.projectId,
-                                sourceStationId: null,
-                                sourceLane: "backlog",
-                              })
-                            }
-                            footer={
-                              <button className="primary-mini" onClick={() => assignProjectToStation(selectedStation.stationId, project.projectId)}>
-                                Add to queue
-                              </button>
-                            }
-                          />
-                        ))
-                      ) : (
-                        <div className="lane-empty small">
-                          <strong>No queue-ready projects</strong>
-                          <p>Add material intent and a revision during intake.</p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="intake-column">
-                      <h4>Drafts</h4>
-                      {draftProjects.length ? (
-                        draftProjects.map((project) => (
-                          <ProjectCard key={project.projectId} project={project} tone="draft" compact />
-                        ))
-                      ) : (
-                        <div className="lane-empty small">
-                          <strong>No drafts</strong>
-                          <p>Everything currently in intake is queue-ready.</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
+                  ) : null}
+                  {selectedProject.status === "qa" ? (
+                    <button className="primary-button" onClick={() => markProjectComplete(selectedProject.projectId)}>
+                      Mark complete
+                    </button>
+                  ) : null}
+                  {selectedProject.status === "complete" ? (
+                    <button className="secondary-button" onClick={() => reopenProject(selectedProject.projectId)}>
+                      Reopen project
+                    </button>
+                  ) : null}
+                  {selectedProject.assignedStationId ? (
+                    <button className="ghost-button" onClick={() => unassignProject(selectedProject.projectId)}>
+                      Remove from printer
+                    </button>
+                  ) : null}
+                </div>
               </>
             ) : (
-              <div className="empty-rail-card tall">
-                <strong>Select a station</strong>
-                <p>Station detail, editable metadata, queue lanes, and intake handoff live here.</p>
-              </div>
+              <EmptyState
+                title="Select a project"
+                body="Project detail is where you control the product definition, material intent, revision, due date, and printer assignment."
+              />
             )}
           </aside>
         </section>
@@ -883,16 +978,566 @@ function App() {
     );
   }
 
-  function renderFleetLibrary() {
+  function renderRepositoryView() {
+    const repositoryHours = filteredRepositoryItems.reduce((sum, item) => sum + item.estimatedPrintHours, 0);
+    const repositoryCost = filteredRepositoryItems.reduce((sum, item) => sum + item.estimatedCostUsd, 0);
+
     return (
-      <div className="view-stack">
-        <section className="section-header">
+      <div className="page-stack">
+        <section className="page-header">
           <div>
-            <p className="eyebrow">Printer catalog</p>
-            <h2>Approved fleet library</h2>
+            <p className="section-kicker">Part repository</p>
+            <h2>Build a digital inventory of qualified `.3mf` parts with the print data your team actually uses.</h2>
+            <p className="section-copy">
+              Inspired by part-identification workflows, this repository stores the part record itself alongside print
+              time, material, cost, revision, and linked project context so your team can screen, qualify, and reuse
+              parts instead of hunting through folders.
+            </p>
           </div>
-          <div className="field-wrap library-search">
-            <label htmlFor="fleet-search">Search printer models</label>
+          <div className="header-actions">
+            <button className="primary-button" onClick={() => openCreateRepository()}>
+              New part record
+            </button>
+          </div>
+        </section>
+
+        <section className="metric-row">
+          <MetricCard label="Part records" value={String(stats.repositoryCount)} tone="blue" />
+          <MetricCard label="Approved parts" value={String(repositoryItems.filter((item) => item.status === "approved").length)} tone="green" />
+          <MetricCard label="Catalog hours" value={repositoryHours.toFixed(1)} tone="purple" />
+          <MetricCard label="Catalog cost" value={`$${repositoryCost.toFixed(0)}`} tone="amber" />
+        </section>
+
+        <section className="operations-grid">
+          <div className="panel table-panel">
+            <div className="panel-head">
+              <div>
+                <p className="section-kicker">Qualified inventory</p>
+                <h3>Part list</h3>
+              </div>
+              <div className="search-shell board-search">
+                <label htmlFor="repository-search">Search repository</label>
+                <input
+                  id="repository-search"
+                  className="field"
+                  value={repositorySearch}
+                  onChange={(event) => setRepositorySearch(event.target.value)}
+                  placeholder="Part, file, material, revision, linked project"
+                />
+              </div>
+            </div>
+
+            {filteredRepositoryItems.length ? (
+              <div className="project-table repository-table">
+                <div className="table-head repository-head">
+                  <span>Part</span>
+                  <span>Status</span>
+                  <span>File</span>
+                  <span>Material</span>
+                  <span>Time</span>
+                  <span>Cost</span>
+                  <span>Project</span>
+                </div>
+                {filteredRepositoryItems.map((item) => {
+                  const linkedProject = projects.find((project) => project.projectId === item.linkedProjectId) ?? null;
+                  return (
+                    <button
+                      key={item.itemId}
+                      className={`table-row repository-row ${selectedRepositoryId === item.itemId ? "selected" : ""}`}
+                      onClick={() => startTransition(() => setSelectedRepositoryId(item.itemId))}
+                    >
+                      <span>
+                        <strong>{item.title}</strong>
+                        <em>{item.productName || "Product not named"}</em>
+                      </span>
+                      <span>
+                        <span className={`status-pill repository-${item.status}`}>{item.status}</span>
+                      </span>
+                      <span>{item.fileName}</span>
+                      <span>{item.material || "Pending"}</span>
+                      <span>{item.estimatedPrintHours.toFixed(1)} hr</span>
+                      <span>${item.estimatedCostUsd.toFixed(2)}</span>
+                      <span>{linkedProject ? `${linkedProject.code}` : "Unlinked"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                title="No part records yet"
+                body="Create repository records for approved `.3mf` files so print time, cost, material, and revision stay visible and reusable."
+              />
+            )}
+          </div>
+
+          <aside className="panel detail-panel">
+            {selectedRepositoryItem ? (
+              <>
+                <div className="panel-head">
+                  <div>
+                    <p className="section-kicker">Part detail</p>
+                    <h3>{selectedRepositoryItem.title}</h3>
+                  </div>
+                  <span className={`status-pill repository-${selectedRepositoryItem.status}`}>
+                    {selectedRepositoryItem.status}
+                  </span>
+                </div>
+
+                <div className="detail-grid">
+                  <Field
+                    label="Part title"
+                    value={selectedRepositoryItem.title}
+                    onChange={(value) => updateRepositoryField(selectedRepositoryItem.itemId, "title", value)}
+                    placeholder="Motor housing bracket"
+                  />
+                  <Field
+                    label="Product / part"
+                    value={selectedRepositoryItem.productName}
+                    onChange={(value) => updateRepositoryField(selectedRepositoryItem.itemId, "productName", value)}
+                    placeholder="Qualified printable part"
+                  />
+                  <Field
+                    label="3MF file"
+                    value={selectedRepositoryItem.fileName}
+                    onChange={(value) => updateRepositoryField(selectedRepositoryItem.itemId, "fileName", value)}
+                    placeholder="housing_bracket_r4.3mf"
+                  />
+                  <Field
+                    label="Revision"
+                    value={selectedRepositoryItem.fileRevision}
+                    onChange={(value) => updateRepositoryField(selectedRepositoryItem.itemId, "fileRevision", value)}
+                    placeholder="r4 approved"
+                  />
+                  <Field
+                    label="Material"
+                    value={selectedRepositoryItem.material}
+                    onChange={(value) => updateRepositoryField(selectedRepositoryItem.itemId, "material", value)}
+                    placeholder="PLA+, PETG-HS, ASA, Blu"
+                  />
+                  <Field
+                    label="Est. print hours"
+                    type="number"
+                    value={String(selectedRepositoryItem.estimatedPrintHours)}
+                    onChange={(value) =>
+                      updateRepositoryField(
+                        selectedRepositoryItem.itemId,
+                        "estimatedPrintHours",
+                        Math.max(0, Number(value) || 0),
+                      )
+                    }
+                    placeholder="0"
+                  />
+                  <Field
+                    label="Est. cost (USD)"
+                    type="number"
+                    value={String(selectedRepositoryItem.estimatedCostUsd)}
+                    onChange={(value) =>
+                      updateRepositoryField(
+                        selectedRepositoryItem.itemId,
+                        "estimatedCostUsd",
+                        Math.max(0, Number(value) || 0),
+                      )
+                    }
+                    placeholder="0"
+                  />
+                  <Field
+                    label="Qty per run"
+                    type="number"
+                    value={String(selectedRepositoryItem.quantityPerRun)}
+                    onChange={(value) =>
+                      updateRepositoryField(
+                        selectedRepositoryItem.itemId,
+                        "quantityPerRun",
+                        Math.max(1, Number(value) || 1),
+                      )
+                    }
+                    placeholder="1"
+                  />
+                  <SelectField
+                    label="Catalog status"
+                    value={selectedRepositoryItem.status}
+                    onChange={(value) =>
+                      updateRepositoryField(
+                        selectedRepositoryItem.itemId,
+                        "status",
+                        value as PartRepositoryItem["status"],
+                      )
+                    }
+                    options={[
+                      { value: "candidate", label: "Candidate" },
+                      { value: "qualified", label: "Qualified" },
+                      { value: "approved", label: "Approved" },
+                    ]}
+                  />
+                  <SelectField
+                    label="Linked project"
+                    value={selectedRepositoryItem.linkedProjectId ?? ""}
+                    onChange={(value) =>
+                      updateRepositoryField(selectedRepositoryItem.itemId, "linkedProjectId", value || null)
+                    }
+                    options={[
+                      { value: "", label: "Unlinked" },
+                      ...projects.map((project) => ({
+                        value: project.projectId,
+                        label: `${project.code} · ${project.title}`,
+                      })),
+                    ]}
+                  />
+                </div>
+
+                <TextAreaField
+                  label="Part notes"
+                  value={selectedRepositoryItem.notes}
+                  onChange={(value) => updateRepositoryField(selectedRepositoryItem.itemId, "notes", value)}
+                  placeholder="Orientation, post-processing, cost assumptions, preferred printers, quality notes"
+                />
+
+                <div className="detail-callout">
+                  <strong>Repository intent</strong>
+                  <p>
+                    This is the digital part inventory layer. Projects track active engineering work, while the
+                    repository preserves reusable, screened, and approved print definitions with cost and timing
+                    metadata for future production.
+                  </p>
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                title="Select a part record"
+                body="Choose a repository item to manage its 3MF filename, revision, print hours, cost, material, and linked project."
+              />
+            )}
+          </aside>
+        </section>
+      </div>
+    );
+  }
+
+  function renderWarehouseView() {
+    return (
+      <div className="page-stack">
+        <section className="page-header">
+          <div>
+            <p className="section-kicker">Print warehouse</p>
+            <h2>Build a digital floor map of your installed printers and assign live projects to each station.</h2>
+            <p className="section-copy">
+              Zones represent parts of the room. Stations represent real installed machines. Each station can carry an
+              active build plus a waiting queue, so everyone sees what is printing and what is next.
+            </p>
+          </div>
+          <div className="header-actions">
+            <button className="secondary-button" onClick={() => setShowCreateZone(true)}>
+              Create zone
+            </button>
+            <button className="primary-button" onClick={() => setShowCreateStation(true)}>
+              Add station
+            </button>
+          </div>
+        </section>
+
+        <div className="warehouse-layout">
+          <div className="panel warehouse-map-panel">
+            <div className="panel-head">
+              <div>
+                <p className="section-kicker">Floor map</p>
+                <h3>Zones and printers</h3>
+              </div>
+              <div className="search-shell">
+                <label htmlFor="warehouse-search">Search warehouse</label>
+                <input
+                  id="warehouse-search"
+                  className="field"
+                  value={warehouseSearch}
+                  onChange={(event) => setWarehouseSearch(event.target.value)}
+                  placeholder="Zone, station, printer model"
+                />
+              </div>
+            </div>
+
+            {filteredZones.length ? (
+              <div className="zone-stack">
+                {filteredZones.map((zone) => {
+                  const zoneStations = stations.filter((station) => station.zoneId === zone.zoneId);
+                  return (
+                    <section key={zone.zoneId} className="zone-card">
+                      <div className="zone-card-head">
+                        <div>
+                          <p className="section-kicker">{zone.workcenterName}</p>
+                          <h3>{zone.zoneName}</h3>
+                          <p>{zone.description || "No zone description yet."}</p>
+                        </div>
+                        <div className="zone-actions">
+                          <button className="ghost-button" onClick={() => openCreateStation(undefined, zone.zoneId)}>
+                            Add station
+                          </button>
+                          <button className="text-danger" onClick={() => deleteZone(zone.zoneId)}>
+                            Delete zone
+                          </button>
+                        </div>
+                      </div>
+
+                      {zoneStations.length ? (
+                        <div className="station-grid">
+                          {zoneStations.map((station) => {
+                            const printer = printerModelMap[station.printerModelId];
+                            const activity = warehouseActivity(station);
+                            const queue = queues[station.stationId] ?? { activeProjectId: null, queuedProjectIds: [] };
+                            const activeProject = queue.activeProjectId
+                              ? projects.find((project) => project.projectId === queue.activeProjectId) ?? null
+                              : null;
+
+                            return (
+                              <button
+                                key={station.stationId}
+                                className={`station-tile ${selectedStationId === station.stationId ? "selected" : ""}`}
+                                onClick={() => startTransition(() => setSelectedStationId(station.stationId))}
+                              >
+                                <div className="station-tile-top">
+                                  <PrinterIcon printer={printer} />
+                                  <span className={`status-pill ${activity.tone}`}>{activity.label}</span>
+                                </div>
+                                <strong>{station.stationName}</strong>
+                                <span className="station-caption">
+                                  {station.machineNickname} · {station.bayLabel || "Bay not set"}
+                                </span>
+                                <span className="station-caption">
+                                  {printer.brand} {printer.model}
+                                </span>
+                                <div className="station-summary">
+                                  <div>
+                                    <span>Active</span>
+                                    <strong>{activeProject?.code ?? "None"}</strong>
+                                  </div>
+                                  <div>
+                                    <span>Queued</span>
+                                    <strong>{queue.queuedProjectIds.length}</strong>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <EmptyState
+                          title="No stations in this zone"
+                          body="Add a printer station to start mapping the real floor."
+                          compact
+                        />
+                      )}
+                    </section>
+                  );
+                })}
+              </div>
+            ) : (
+              <EmptyState
+                title="No zones yet"
+                body="Create your first zone so the print warehouse can mirror the physical layout of the room."
+              />
+            )}
+          </div>
+
+          <aside className="panel station-detail-panel">
+            {selectedStation ? (
+              <>
+                <div className="panel-head">
+                  <div>
+                    <p className="section-kicker">Station detail</p>
+                    <h3>{selectedStation.stationName}</h3>
+                  </div>
+                  <span className={`status-pill ${warehouseActivity(selectedStation).tone}`}>
+                    {warehouseActivity(selectedStation).label}
+                  </span>
+                </div>
+
+                <div className="station-hero">
+                  <PrinterIcon printer={printerModelMap[selectedStation.printerModelId]} className="large" />
+                  <div>
+                    <h4>
+                      {printerModelMap[selectedStation.printerModelId].brand}{" "}
+                      {printerModelMap[selectedStation.printerModelId].model}
+                    </h4>
+                    <p>
+                      {selectedStation.machineNickname} · {selectedStation.bayLabel || "Bay not set"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="detail-grid">
+                  <Field
+                    label="Station name"
+                    value={selectedStation.stationName}
+                    onChange={(value) => updateStationField(selectedStation.stationId, "stationName", value)}
+                    placeholder="Station 04"
+                  />
+                  <Field
+                    label="Machine nickname"
+                    value={selectedStation.machineNickname}
+                    onChange={(value) => updateStationField(selectedStation.stationId, "machineNickname", value)}
+                    placeholder="X1C East"
+                  />
+                  <Field
+                    label="Bay label"
+                    value={selectedStation.bayLabel}
+                    onChange={(value) => updateStationField(selectedStation.stationId, "bayLabel", value)}
+                    placeholder="Bay 04"
+                  />
+                  <SelectField
+                    label="Station health"
+                    value={selectedStation.stationHealth}
+                    onChange={(value) =>
+                      updateStationField(
+                        selectedStation.stationId,
+                        "stationHealth",
+                        value as WorkcenterStation["stationHealth"],
+                      )
+                    }
+                    options={[
+                      { value: "ready", label: "Ready" },
+                      { value: "maintenance", label: "Maintenance" },
+                      { value: "offline", label: "Offline" },
+                    ]}
+                  />
+                </div>
+
+                <TextAreaField
+                  label="Station notes"
+                  value={selectedStation.notes}
+                  onChange={(value) => updateStationField(selectedStation.stationId, "notes", value)}
+                  placeholder="Nozzle size, approved materials, maintenance caveats, location notes"
+                />
+
+                <div className="queue-shell">
+                  <div className="queue-head">
+                    <div>
+                      <p className="section-kicker">Print queue</p>
+                      <h4>Active build and next-up sequence</h4>
+                    </div>
+                    <SelectField
+                      label="Assign ready project"
+                      compact
+                      value=""
+                      onChange={(value) => {
+                        if (value) {
+                          assignProjectToStation(value, selectedStation.stationId);
+                        }
+                      }}
+                      options={[
+                        { value: "", label: "Select a project" },
+                        ...assignableProjects
+                          .filter((project) => project.assignedStationId !== selectedStation.stationId)
+                          .map((project) => ({
+                            value: project.projectId,
+                            label: `${project.code} · ${project.title}`,
+                          })),
+                      ]}
+                    />
+                  </div>
+
+                  <div className="queue-active-card">
+                    <span className="queue-label">Active</span>
+                    {selectedStationQueue?.activeProjectId ? (
+                      (() => {
+                        const activeProject =
+                          projects.find((project) => project.projectId === selectedStationQueue.activeProjectId) ?? null;
+                        if (!activeProject) {
+                          return <p>Missing active project record.</p>;
+                        }
+
+                        return (
+                          <>
+                            <strong>{activeProject.code}</strong>
+                            <p>{activeProject.title}</p>
+                            <div className="queue-actions">
+                              <button
+                                className="secondary-button"
+                                onClick={() => sendActiveToQa(selectedStation.stationId)}
+                              >
+                                Send to QA
+                              </button>
+                              <button className="ghost-button" onClick={() => markProjectComplete(activeProject.projectId)}>
+                                Mark complete
+                              </button>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <p>No project is currently printing on this station.</p>
+                    )}
+                  </div>
+
+                  <div className="queue-list">
+                    {selectedStationQueue?.queuedProjectIds.length ? (
+                      selectedStationQueue.queuedProjectIds.map((projectId, index) => {
+                        const project = projects.find((candidate) => candidate.projectId === projectId);
+                        if (!project) {
+                          return null;
+                        }
+
+                        return (
+                          <div key={project.projectId} className="queue-row">
+                            <div>
+                              <strong>{project.code}</strong>
+                              <p>{project.title}</p>
+                            </div>
+                            <div className="queue-row-actions">
+                              <button
+                                className="ghost-icon-button"
+                                onClick={() => moveQueuedProject(selectedStation.stationId, project.projectId, -1)}
+                                disabled={index === 0}
+                                aria-label="Move project up"
+                              >
+                                ↑
+                              </button>
+                              <button
+                                className="ghost-icon-button"
+                                onClick={() => moveQueuedProject(selectedStation.stationId, project.projectId, 1)}
+                                disabled={index === selectedStationQueue.queuedProjectIds.length - 1}
+                                aria-label="Move project down"
+                              >
+                                ↓
+                              </button>
+                              <button
+                                className="secondary-button"
+                                onClick={() => startQueuedProject(selectedStation.stationId, project.projectId)}
+                              >
+                                Start
+                              </button>
+                              <button className="ghost-button" onClick={() => unassignProject(project.projectId)}>
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="empty-lane">No queued projects for this station.</div>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <EmptyState
+                title="Select a station"
+                body="Choose a printer tile to manage its health, local notes, and project queue."
+              />
+            )}
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
+  function renderFleetView() {
+    return (
+      <div className="page-stack">
+        <section className="page-header">
+          <div>
+            <p className="section-kicker">Approved hardware</p>
+            <h2>Printer models that can be instantiated as real stations on the warehouse floor.</h2>
+          </div>
+          <div className="search-shell">
+            <label htmlFor="fleet-search">Search models</label>
             <input
               id="fleet-search"
               className="field"
@@ -905,28 +1550,26 @@ function App() {
 
         <section className="fleet-grid">
           {filteredFleet.map((printer) => (
-            <article key={printer.modelId} className="fleet-card">
-              <div className="fleet-card-head">
-                <div>
-                  <p className="card-kicker">{printer.brand}</p>
-                  <h3>{printer.model}</h3>
-                </div>
-                <span className={`printer-chip ${printer.printerType}`}>{printer.technology}</span>
+            <article key={printer.modelId} className="panel fleet-card">
+              <div className="fleet-card-top">
+                <PrinterIcon printer={printer} className="large" />
+                <span className={`status-pill ${printer.printerType}`}>{printer.technology}</span>
               </div>
-
-              <div className={`silhouette-frame ${printer.printerType}`}>
-                <div className="silhouette-label">{printer.printerType === "resin" ? "Resin platform" : "FDM platform"}</div>
-                <strong>{printer.model}</strong>
-                <span className="spotlight-dimensions">{printer.buildVolume.join(" x ")} mm build volume</span>
+              <div className="fleet-copy">
+                <p className="section-kicker">{printer.brand}</p>
+                <h3>{printer.model}</h3>
+                <p>{printer.buildVolume.join(" x ")} mm build volume</p>
               </div>
-
-              <div className="tag-row">
+              <div className="tag-list">
                 {printer.capabilityFlags.map((flag) => (
-                  <span key={flag} className="capability-tag">
+                  <span key={flag} className="tag">
                     {flag}
                   </span>
                 ))}
               </div>
+              <button className="primary-button stretch" onClick={() => openCreateStation(printer.modelId)}>
+                Create station from this model
+              </button>
             </article>
           ))}
         </section>
@@ -934,11 +1577,11 @@ function App() {
     );
   }
 
-  function renderSpecs() {
+  function renderSpecsView() {
     return (
       <div className="spec-layout">
-        <aside className="spec-rail">
-          <p className="eyebrow">Source package</p>
+        <aside className="panel spec-rail">
+          <p className="section-kicker">Source package</p>
           <h2>Spec vault</h2>
           <div className="spec-list">
             {specDocuments.map((spec) => (
@@ -954,13 +1597,13 @@ function App() {
           </div>
         </aside>
 
-        <section className="spec-panel">
-          <div className="spec-panel-head">
+        <section className="panel spec-panel">
+          <div className="panel-head">
             <div>
-              <p className="eyebrow">{selectedSpec.docType}</p>
+              <p className="section-kicker">{selectedSpec.docType}</p>
               <h2>{selectedSpec.title}</h2>
             </div>
-            <span className="spec-filename">{selectedSpec.filename}</span>
+            <span className="spec-file">{selectedSpec.filename}</span>
           </div>
           <pre className="code-block">{selectedSpec.raw}</pre>
         </section>
@@ -969,30 +1612,38 @@ function App() {
   }
 
   return (
-    <div className="shell">
-      <aside className="navigation">
-        <div className="brand-lockup">
-          <p className="eyebrow">Vault Core</p>
-          <h1>PrintForge Operations</h1>
-          <p>Station-based manufacturing software for additive engineering teams.</p>
+    <div className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-card">
+          <p className="section-kicker">Vault Core</p>
+          <h1>PrintForge</h1>
+          <p>
+            Project management for additive manufacturing teams, with product definition, print-floor mapping, and live
+            printer assignment in one place.
+          </p>
         </div>
 
-        <nav className="nav-stack">
+        <nav className="nav-list">
           {navItems.map((item) => (
             <button
               key={item.id}
-              className={`nav-tile ${activeView === item.id ? "active" : ""}`}
+              className={`nav-item ${activeView === item.id ? "active" : ""}`}
               onClick={() => setActiveView(item.id)}
             >
               <strong>{item.label}</strong>
-              <span>{item.hint}</span>
+              <span>{item.caption}</span>
             </button>
           ))}
         </nav>
 
         <div className="operator-card">
-          <label htmlFor="operator-switch">Active operator</label>
-          <select id="operator-switch" className="field" value={currentUserId} onChange={(event) => setCurrentUserId(event.target.value)}>
+          <label htmlFor="operator-select">Active teammate</label>
+          <select
+            id="operator-select"
+            className="field"
+            value={currentUserId}
+            onChange={(event) => setCurrentUserId(event.target.value)}
+          >
             {seedUsers.map((user) => (
               <option key={user.uid} value={user.uid}>
                 {user.displayName} · {roleLabels[user.role]}
@@ -1000,95 +1651,94 @@ function App() {
             ))}
           </select>
           <p>
-            Signed in as <strong>{currentUser.displayName}</strong>
+            Logged in as <strong>{currentUser.displayName}</strong>
           </p>
         </div>
       </aside>
 
       <main className="workspace">
-        <header className="workspace-header">
+        <header className="workspace-topbar">
           <div>
-            <p className="eyebrow">Current surface</p>
+            <p className="section-kicker">Current workspace</p>
             <h2>{navItems.find((item) => item.id === activeView)?.label}</h2>
           </div>
-          <div className="workspace-badges">
-            <span className="workspace-badge">Drag queue ordering</span>
-            <span className="workspace-badge">Persistent local state</span>
-            <span className="workspace-badge">No fake live metrics</span>
+          <div className="topbar-badges">
+            <span className="topbar-badge">No seeded projects</span>
+            <span className="topbar-badge">Digital part repository</span>
+            <span className="topbar-badge">Real fleet catalog</span>
+            <span className="topbar-badge">Station-based scheduling</span>
           </div>
         </header>
 
-        {activeView === "workcenter" && renderWorkcenter()}
-        {activeView === "fleet" && renderFleetLibrary()}
-        {activeView === "specs" && renderSpecs()}
+        {activeView === "projects" ? renderProjectsView() : null}
+        {activeView === "repository" ? renderRepositoryView() : null}
+        {activeView === "warehouse" ? renderWarehouseView() : null}
+        {activeView === "fleet" ? renderFleetView() : null}
+        {activeView === "specs" ? renderSpecsView() : null}
       </main>
 
       {showCreateZone ? (
-        <ModalScrim onClose={() => setShowCreateZone(false)}>
+        <ModalShell onClose={() => setShowCreateZone(false)}>
           <div className="modal-card">
-            <div className="modal-head">
+            <div className="panel-head">
               <div>
-                <p className="eyebrow">Create zone</p>
-                <h2>Define a real production area.</h2>
+                <p className="section-kicker">Create zone</p>
+                <h3>Add a production area to the warehouse map.</h3>
               </div>
-              <button className="ghost-mini" onClick={() => setShowCreateZone(false)}>
+              <button className="ghost-button" onClick={() => setShowCreateZone(false)}>
                 Close
               </button>
             </div>
 
             <form className="form-stack" onSubmit={createZone}>
-              <div className="form-grid">
+              <div className="detail-grid">
                 <Field
-                  label="Workcenter name"
+                  label="Workcenter"
                   value={zoneForm.workcenterName}
                   onChange={(value) => setZoneForm((current) => ({ ...current, workcenterName: value }))}
                   placeholder="North Production Floor"
                 />
                 <Field
-                  label="Zone name"
+                  label="Zone"
                   value={zoneForm.zoneName}
                   onChange={(value) => setZoneForm((current) => ({ ...current, zoneName: value }))}
-                  placeholder="Large Format Row"
+                  placeholder="Prototype Row"
                 />
               </div>
-              <div className="field-wrap">
-                <label htmlFor="zone-description">Description</label>
-                <textarea
-                  id="zone-description"
-                  className="field textarea"
-                  value={zoneForm.description}
-                  onChange={(event) => setZoneForm((current) => ({ ...current, description: event.target.value }))}
-                  placeholder="What happens in this part of the shop, access notes, workflow focus"
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="ghost-action" onClick={() => setShowCreateZone(false)}>
+              <TextAreaField
+                label="Description"
+                value={zoneForm.description}
+                onChange={(value) => setZoneForm((current) => ({ ...current, description: value }))}
+                placeholder="What this area is used for, staffing notes, environmental notes"
+              />
+              <div className="action-row">
+                <button type="button" className="ghost-button" onClick={() => setShowCreateZone(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="primary-action">
+                <button type="submit" className="primary-button">
                   Create zone
                 </button>
               </div>
             </form>
           </div>
-        </ModalScrim>
+        </ModalShell>
       ) : null}
 
       {showCreateProject ? (
-        <ModalScrim onClose={() => setShowCreateProject(false)}>
-          <div className="modal-card">
-            <div className="modal-head">
+        <ModalShell onClose={() => setShowCreateProject(false)}>
+          <div className="modal-card wide">
+            <div className="panel-head">
               <div>
-                <p className="eyebrow">Project intake</p>
-                <h2>Create a product-ready engineering project.</h2>
+                <p className="section-kicker">New project</p>
+                <h3>Create a manufacturing project and its product definition.</h3>
               </div>
-              <button className="ghost-mini" onClick={() => setShowCreateProject(false)}>
+              <button className="ghost-button" onClick={() => setShowCreateProject(false)}>
                 Close
               </button>
             </div>
 
             <form className="form-stack" onSubmit={createProject}>
-              <div className="form-grid">
+              <div className="detail-grid">
                 <Field
                   label="Project title"
                   value={projectForm.title}
@@ -1102,99 +1752,260 @@ function App() {
                   placeholder="PF-2401"
                 />
                 <Field
-                  label="Product / part name"
+                  label="Product / part"
                   value={projectForm.productName}
                   onChange={(value) => setProjectForm((current) => ({ ...current, productName: value }))}
                   placeholder="Jig base assembly"
                 />
                 <Field
+                  label="Client"
+                  value={projectForm.clientName}
+                  onChange={(value) => setProjectForm((current) => ({ ...current, clientName: value }))}
+                  placeholder="Customer or internal team"
+                />
+                <Field
                   label="Material intent"
                   value={projectForm.materialIntent}
                   onChange={(value) => setProjectForm((current) => ({ ...current, materialIntent: value }))}
-                  placeholder="PETG HF / Siraya Blu / PA6-CF"
+                  placeholder="PETG-HS / ASA / TPU 95A"
                 />
                 <Field
-                  label="Current revision"
+                  label="File revision"
                   value={projectForm.fileRevision}
                   onChange={(value) => setProjectForm((current) => ({ ...current, fileRevision: value }))}
-                  placeholder="r3 approved_current"
+                  placeholder="r2 approved"
+                />
+                <Field
+                  label="Quantity"
+                  type="number"
+                  value={projectForm.quantity}
+                  onChange={(value) => setProjectForm((current) => ({ ...current, quantity: value }))}
+                  placeholder="1"
+                />
+                <Field
+                  label="Due date"
+                  type="date"
+                  value={projectForm.dueDate}
+                  onChange={(value) => setProjectForm((current) => ({ ...current, dueDate: value }))}
+                  placeholder=""
+                />
+                <SelectField
+                  label="Priority"
+                  value={projectForm.priority}
+                  onChange={(value) =>
+                    setProjectForm((current) => ({ ...current, priority: value as WorkProjectPriority }))
+                  }
+                  options={Object.entries(priorityLabels).map(([value, label]) => ({ value, label }))}
                 />
               </div>
-              <div className="intake-note">
-                Projects with both material intent and revision start as <strong>ready</strong>. Otherwise they stay in
-                <strong> draft</strong> until the required manufacturing data is filled in.
+              <TextAreaField
+                label="Notes"
+                value={projectForm.notes}
+                onChange={(value) => setProjectForm((current) => ({ ...current, notes: value }))}
+                placeholder="Support strategy, post-processing, tolerance concerns, client context"
+              />
+              <div className="detail-callout">
+                Projects without both material and file revision start in intake. Once those are present, the project is
+                immediately ready for printer assignment.
               </div>
-              <div className="modal-actions">
-                <button type="button" className="ghost-action" onClick={() => setShowCreateProject(false)}>
+              <div className="action-row">
+                <button type="button" className="ghost-button" onClick={() => setShowCreateProject(false)}>
                   Cancel
                 </button>
-                <button type="submit" className="primary-action">
+                <button type="submit" className="primary-button">
                   Create project
                 </button>
               </div>
             </form>
           </div>
-        </ModalScrim>
+        </ModalShell>
+      ) : null}
+
+      {showCreateRepository ? (
+        <ModalShell onClose={() => setShowCreateRepository(false)}>
+          <div className="modal-card wide">
+            <div className="panel-head">
+              <div>
+                <p className="section-kicker">New part record</p>
+                <h3>Create a reusable repository item for a `.3mf` print file.</h3>
+              </div>
+              <button className="ghost-button" onClick={() => setShowCreateRepository(false)}>
+                Close
+              </button>
+            </div>
+
+            <form className="form-stack" onSubmit={createRepositoryItem}>
+              <div className="detail-grid">
+                <Field
+                  label="Record title"
+                  value={repositoryForm.title}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, title: value }))}
+                  placeholder="Motor housing bracket"
+                />
+                <Field
+                  label="Product / part"
+                  value={repositoryForm.productName}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, productName: value }))}
+                  placeholder="Printable part name"
+                />
+                <Field
+                  label="3MF filename"
+                  value={repositoryForm.fileName}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, fileName: value }))}
+                  placeholder="housing_bracket_r4.3mf"
+                />
+                <div className="field-wrap">
+                  <label htmlFor="repository-file-upload">Attach `.3mf` file</label>
+                  <input
+                    id="repository-file-upload"
+                    className="field"
+                    type="file"
+                    accept=".3mf"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) {
+                        return;
+                      }
+                      setRepositoryForm((current) => ({
+                        ...current,
+                        fileName: file.name,
+                      }));
+                    }}
+                  />
+                </div>
+                <Field
+                  label="Revision"
+                  value={repositoryForm.fileRevision}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, fileRevision: value }))}
+                  placeholder="r4 approved"
+                />
+                <Field
+                  label="Material"
+                  value={repositoryForm.material}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, material: value }))}
+                  placeholder="PLA+, PETG-HS, ASA, Blu"
+                />
+                <Field
+                  label="Est. print hours"
+                  type="number"
+                  value={repositoryForm.estimatedPrintHours}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, estimatedPrintHours: value }))}
+                  placeholder="0"
+                />
+                <Field
+                  label="Est. cost (USD)"
+                  type="number"
+                  value={repositoryForm.estimatedCostUsd}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, estimatedCostUsd: value }))}
+                  placeholder="0"
+                />
+                <Field
+                  label="Qty per run"
+                  type="number"
+                  value={repositoryForm.quantityPerRun}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, quantityPerRun: value }))}
+                  placeholder="1"
+                />
+                <SelectField
+                  label="Catalog status"
+                  value={repositoryForm.status}
+                  onChange={(value) =>
+                    setRepositoryForm((current) => ({
+                      ...current,
+                      status: value as PartRepositoryItem["status"],
+                    }))
+                  }
+                  options={[
+                    { value: "candidate", label: "Candidate" },
+                    { value: "qualified", label: "Qualified" },
+                    { value: "approved", label: "Approved" },
+                  ]}
+                />
+                <SelectField
+                  label="Linked project"
+                  value={repositoryForm.linkedProjectId}
+                  onChange={(value) => setRepositoryForm((current) => ({ ...current, linkedProjectId: value }))}
+                  options={[
+                    { value: "", label: "Unlinked" },
+                    ...projects.map((project) => ({
+                      value: project.projectId,
+                      label: `${project.code} · ${project.title}`,
+                    })),
+                  ]}
+                />
+              </div>
+              <TextAreaField
+                label="Notes"
+                value={repositoryForm.notes}
+                onChange={(value) => setRepositoryForm((current) => ({ ...current, notes: value }))}
+                placeholder="Qualification notes, orientation, support strategy, preferred printers, cost assumptions"
+              />
+              <div className="detail-callout">
+                This repository stores the reusable print definition, while projects continue to track the active work,
+                ownership, scheduling, and floor execution. The current prototype stores file metadata and selected file
+                names locally; Firebase Storage can become the binary source of truth next.
+              </div>
+              <div className="action-row">
+                <button type="button" className="ghost-button" onClick={() => setShowCreateRepository(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary-button">
+                  Create part record
+                </button>
+              </div>
+            </form>
+          </div>
+        </ModalShell>
       ) : null}
 
       {showCreateStation ? (
-        <ModalScrim onClose={() => setShowCreateStation(false)} align="right">
-          <div className="station-drawer">
-            <div className="modal-head">
+        <ModalShell onClose={() => setShowCreateStation(false)} align="right">
+          <div className="drawer-card">
+            <div className="panel-head">
               <div>
-                <p className="eyebrow">Create station</p>
-                <h2>Attach a printer model to a real floor location.</h2>
+                <p className="section-kicker">New station</p>
+                <h3>Instantiate a real printer on the warehouse floor.</h3>
               </div>
-              <button className="ghost-mini" onClick={() => setShowCreateStation(false)}>
+              <button className="ghost-button" onClick={() => setShowCreateStation(false)}>
                 Close
               </button>
             </div>
 
             <div className="drawer-layout">
               <form className="form-stack" onSubmit={createStation}>
-                <div className="form-grid">
+                <div className="detail-grid">
                   <Field
                     label="Station name"
                     value={stationForm.stationName}
                     onChange={(value) => setStationForm((current) => ({ ...current, stationName: value }))}
                     placeholder="Station 04"
                   />
-                  <div className="field-wrap">
-                    <label htmlFor="station-zone">Zone</label>
-                    <select
-                      id="station-zone"
-                      className="field"
-                      value={stationForm.zoneId}
-                      onChange={(event) => setStationForm((current) => ({ ...current, zoneId: event.target.value }))}
-                    >
-                      <option value="">Select zone</option>
-                      {zones.map((zone) => (
-                        <option key={zone.zoneId} value={zone.zoneId}>
-                          {zone.workcenterName} / {zone.zoneName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field-wrap">
-                    <label htmlFor="station-printer-model">Printer model</label>
-                    <select
-                      id="station-printer-model"
-                      className="field"
-                      value={stationForm.printerModelId}
-                      onChange={(event) => setStationForm((current) => ({ ...current, printerModelId: event.target.value }))}
-                    >
-                      {printerCatalog.map((printer) => (
-                        <option key={printer.modelId} value={printer.modelId}>
-                          {printer.brand} {printer.model}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <SelectField
+                    label="Zone"
+                    value={stationForm.zoneId}
+                    onChange={(value) => setStationForm((current) => ({ ...current, zoneId: value }))}
+                    options={[
+                      { value: "", label: "Select zone" },
+                      ...zones.map((zone) => ({
+                        value: zone.zoneId,
+                        label: `${zone.workcenterName} · ${zone.zoneName}`,
+                      })),
+                    ]}
+                  />
+                  <SelectField
+                    label="Printer model"
+                    value={stationForm.printerModelId}
+                    onChange={(value) => setStationForm((current) => ({ ...current, printerModelId: value }))}
+                    options={printerCatalog.map((printer) => ({
+                      value: printer.modelId,
+                      label: `${printer.brand} ${printer.model}`,
+                    }))}
+                  />
                   <Field
                     label="Machine nickname"
                     value={stationForm.machineNickname}
                     onChange={(value) => setStationForm((current) => ({ ...current, machineNickname: value }))}
-                    placeholder="X1E North"
+                    placeholder="X1C East"
                   />
                   <Field
                     label="Bay label"
@@ -1202,45 +2013,55 @@ function App() {
                     onChange={(value) => setStationForm((current) => ({ ...current, bayLabel: value }))}
                     placeholder="Bay 04"
                   />
-                </div>
-                <div className="field-wrap">
-                  <label htmlFor="station-notes">Notes</label>
-                  <textarea
-                    id="station-notes"
-                    className="field textarea"
-                    value={stationForm.notes}
-                    onChange={(event) => setStationForm((current) => ({ ...current, notes: event.target.value }))}
-                    placeholder="Nozzle, material restrictions, maintenance caveats, local operator guidance"
+                  <SelectField
+                    label="Health"
+                    value={stationForm.stationHealth}
+                    onChange={(value) =>
+                      setStationForm((current) => ({
+                        ...current,
+                        stationHealth: value as WorkcenterStation["stationHealth"],
+                      }))
+                    }
+                    options={[
+                      { value: "ready", label: "Ready" },
+                      { value: "maintenance", label: "Maintenance" },
+                      { value: "offline", label: "Offline" },
+                    ]}
                   />
                 </div>
-                <div className="modal-actions">
-                  <button type="button" className="ghost-action" onClick={() => setShowCreateStation(false)}>
+                <TextAreaField
+                  label="Station notes"
+                  value={stationForm.notes}
+                  onChange={(value) => setStationForm((current) => ({ ...current, notes: value }))}
+                  placeholder="Location notes, materials allowed, nozzle size, maintenance status"
+                />
+                <div className="action-row">
+                  <button type="button" className="ghost-button" onClick={() => setShowCreateStation(false)}>
                     Cancel
                   </button>
-                  <button type="submit" className="primary-action">
+                  <button type="submit" className="primary-button">
                     Create station
                   </button>
                 </div>
               </form>
 
               <aside className="drawer-preview">
-                <p className="eyebrow">Live preview</p>
-                <div className={`silhouette-frame morph-preview ${stationPreviewPrinter.printerType}`}>
-                  <div className="silhouette-label">{stationPreviewPrinter.brand}</div>
-                  <strong>{stationForm.stationName || stationPreviewPrinter.model}</strong>
-                  <span className="spotlight-dimensions">
-                    {(stationForm.machineNickname || stationPreviewPrinter.model) + " · " + stationPreviewPrinter.technology}
+                <p className="section-kicker">Station preview</p>
+                <div className="preview-card">
+                  <PrinterIcon printer={printerModelMap[stationForm.printerModelId]} className="large" />
+                  <strong>{stationForm.stationName || "Station name"}</strong>
+                  <span>
+                    {stationForm.machineNickname || printerModelMap[stationForm.printerModelId].model} ·{" "}
+                    {stationForm.bayLabel || "Bay not set"}
+                  </span>
+                  <span>
+                    {printerModelMap[stationForm.printerModelId].brand}{" "}
+                    {printerModelMap[stationForm.printerModelId].model}
                   </span>
                 </div>
-                <div className="preview-grid">
-                  <MetaPair label="Zone" value={zoneMap[stationForm.zoneId]?.zoneName ?? "Select a zone"} />
-                  <MetaPair label="Bay" value={stationForm.bayLabel || "Not set"} />
-                  <MetaPair label="Type" value={stationPreviewPrinter.printerType.toUpperCase()} />
-                  <MetaPair label="Build volume" value={stationPreviewPrinter.buildVolume.join(" x ") + " mm"} />
-                </div>
-                <div className="tag-row">
-                  {stationPreviewPrinter.capabilityFlags.map((flag) => (
-                    <span key={flag} className="capability-tag">
+                <div className="tag-list">
+                  {printerModelMap[stationForm.printerModelId].capabilityFlags.map((flag) => (
+                    <span key={flag} className="tag">
                       {flag}
                     </span>
                   ))}
@@ -1248,7 +2069,7 @@ function App() {
               </aside>
             </div>
           </div>
-        </ModalScrim>
+        </ModalShell>
       ) : null}
     </div>
   );
@@ -1267,77 +2088,73 @@ function persistState(key: string, value: unknown) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
-function unique<T>(items: T[]) {
-  return [...new Set(items)];
-}
-
-function MetricBlock({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value, tone }: { label: string; value: string; tone: "blue" | "green" | "purple" | "amber" }) {
   return (
-    <div className="metric-block">
+    <article className={`metric-card ${tone}`}>
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
-  );
-}
-
-function BlueprintCard({ eyebrow, title, items }: { eyebrow: string; title: string; items: string[] }) {
-  return (
-    <article className="blueprint-card">
-      <p className="eyebrow">{eyebrow}</p>
-      <h2>{title}</h2>
-      <ol className="blueprint-list">
-        {items.map((item) => (
-          <li key={item}>{item}</li>
-        ))}
-      </ol>
     </article>
   );
 }
 
-function ProjectCard({
-  project,
-  tone,
-  draggable = false,
-  compact = false,
-  onDragStart,
-  footer,
-}: {
-  project: WorkProject;
-  tone: "draft" | "ready" | "queued" | "printing" | "complete";
-  draggable?: boolean;
-  compact?: boolean;
-  onDragStart?: (event: DragEvent<HTMLElement>) => void;
-  footer?: React.ReactNode;
-}) {
+function EmptyState({ title, body, compact = false }: { title: string; body: string; compact?: boolean }) {
   return (
-    <article className={`project-card ${tone} ${compact ? "compact" : ""}`} draggable={draggable} onDragStart={onDragStart}>
-      <div className="project-card-head">
-        <div>
-          <span className={`status-dot ${tone}`} />
-          <strong>{project.title}</strong>
-        </div>
-        <span className="project-code">{project.code}</span>
-      </div>
-      <p className="project-detail">{project.productName || "Product name not set"}</p>
-      <div className="project-facts">
-        <span>{project.materialIntent || "Material pending"}</span>
-        <span>{project.fileRevision || "Revision pending"}</span>
-      </div>
-      {footer ? <div className="project-footer">{footer}</div> : null}
-    </article>
-  );
-}
-
-function MetaPair({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="meta-pair">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <div className={`empty-state ${compact ? "compact" : ""}`}>
+      <strong>{title}</strong>
+      <p>{body}</p>
     </div>
   );
 }
 
 function Field({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  type?: "text" | "date" | "number";
+}) {
+  return (
+    <div className="field-wrap">
+      <label>{label}</label>
+      <input className="field" type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+    </div>
+  );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+  compact?: boolean;
+}) {
+  return (
+    <div className={`field-wrap ${compact ? "compact" : ""}`}>
+      <label>{label}</label>
+      <select className="field" value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={`${option.value}-${option.label}`} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function TextAreaField({
   label,
   value,
   onChange,
@@ -1351,22 +2168,22 @@ function Field({
   return (
     <div className="field-wrap">
       <label>{label}</label>
-      <input className="field" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
+      <textarea className="field textarea" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />
     </div>
   );
 }
 
-function ModalScrim({
+function ModalShell({
   children,
   onClose,
   align = "center",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   onClose: () => void;
   align?: "center" | "right";
 }) {
   return (
-    <div className={`modal-scrim ${align}`} onClick={onClose}>
+    <div className={`modal-shell ${align}`} onClick={onClose}>
       <div onClick={(event) => event.stopPropagation()}>{children}</div>
     </div>
   );

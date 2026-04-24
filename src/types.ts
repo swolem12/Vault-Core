@@ -1,6 +1,6 @@
 export type Role = "admin" | "engineering_lead" | "engineer" | "operator" | "viewer";
 
-export type AppView = "workcenter" | "fleet" | "specs";
+export type AppView = "projects" | "repository" | "warehouse" | "fleet" | "specs";
 
 export interface User {
   uid: string;
@@ -38,28 +38,53 @@ export interface WorkcenterStation {
   machineNickname: string;
   bayLabel: string;
   notes: string;
+  stationHealth: "ready" | "maintenance" | "offline";
   createdAt: string;
   createdByUid: string;
 }
 
-export type WorkProjectStatus = "draft" | "ready" | "queued" | "printing" | "complete";
+export type WorkProjectStatus = "intake" | "ready" | "queued" | "printing" | "qa" | "complete";
+
+export type WorkProjectPriority = "low" | "normal" | "high" | "rush";
 
 export interface WorkProject {
   projectId: string;
   title: string;
   code: string;
   productName: string;
+  clientName: string;
   materialIntent: string;
   fileRevision: string;
+  quantity: number;
+  dueDate: string;
+  priority: WorkProjectPriority;
+  notes: string;
   status: WorkProjectStatus;
   ownerUid: string;
   createdAt: string;
-  queueStationId: string | null;
+  assignedStationId: string | null;
 }
 
 export interface StationQueueState {
   activeProjectId: string | null;
   queuedProjectIds: string[];
+}
+
+export interface PartRepositoryItem {
+  itemId: string;
+  title: string;
+  linkedProjectId: string | null;
+  productName: string;
+  fileName: string;
+  fileRevision: string;
+  material: string;
+  estimatedPrintHours: number;
+  estimatedCostUsd: number;
+  quantityPerRun: number;
+  status: "candidate" | "qualified" | "approved";
+  notes: string;
+  createdAt: string;
+  createdByUid: string;
 }
 
 export interface SpecDocument {
