@@ -1,0 +1,303 @@
+TOON_VERSION: 1.0
+DOC_TYPE: DOMAIN_MODEL
+DOC_ID: printforge.domain_model
+TITLE: Domain Model
+
+ROOT_ENTITIES:
+  Organization
+  User
+  Project
+  FileArtifact
+  FileRevision
+  Printer
+  PrinterCapability
+  BuildJob
+  Material
+  MaterialBrand
+  MaterialFamily
+  Resin
+  ActivityEvent
+  Comment
+  Blocker
+  Tag
+  DashboardView
+  Notification
+  Team
+  Location
+  MaintenanceRecord
+
+ENTITY_RELATIONSHIPS:
+  Organization:
+    hasMany:
+      - users
+      - projects
+      - printers
+      - materials
+      - teams
+      - locations
+
+  User:
+    fields:
+      - uid
+      - displayName
+      - email
+      - photoURL
+      - role
+      - teamId
+      - active
+      - lastSeenAt
+    canOwn:
+      - projects
+      - buildJobs
+      - comments
+      - blockers
+      - activityEvents
+
+  Project:
+    fields:
+      - projectId
+      - title
+      - code
+      - description
+      - priority
+      - status
+      - lifecycleStage
+      - ownerUid
+      - collaboratorUids
+      - requestedMaterialId
+      - preferredPrinterIds
+      - dueDate
+      - tags
+      - blocked
+      - archived
+      - createdAt
+      - updatedAt
+    hasMany:
+      - fileArtifacts
+      - buildJobs
+      - comments
+      - blockers
+      - activityEvents
+
+  FileArtifact:
+    purpose:
+      Represents a managed file bucket entry under a project, such as the main .3mf package, support files, renders, notes, validation snapshots, or machine-ready exports.
+    fields:
+      - fileArtifactId
+      - projectId
+      - kind
+      - canonicalName
+      - latestRevisionId
+      - storageFolder
+      - active
+      - createdBy
+      - createdAt
+
+  FileRevision:
+    purpose:
+      Immutable revision record for a file upload.
+    fields:
+      - revisionId
+      - fileArtifactId
+      - projectId
+      - storagePath
+      - filename
+      - extension
+      - mimeType
+      - sizeBytes
+      - checksumSha256
+      - uploadedBy
+      - uploadedAt
+      - revisionNumber
+      - status
+      - slicer
+      - slicerVersion
+      - printerProfile
+      - materialProfile
+      - notes
+      - parsedMetadata
+      - previewImagePath
+      - isCurrent
+
+  Printer:
+    fields:
+      - printerId
+      - brand
+      - model
+      - nickname
+      - serialNumber
+      - assetTag
+      - printerType
+      - locationId
+      - operationalStatus
+      - queueStatus
+      - ownerTeamId
+      - notes
+      - capabilityProfileId
+      - iconKey
+      - supportedMaterialFamilyIds
+      - currentJobId
+      - active
+      - createdAt
+      - updatedAt
+
+  PrinterCapability:
+    fields:
+      - capabilityProfileId
+      - printerId
+      - technology
+      - buildVolumeX
+      - buildVolumeY
+      - buildVolumeZ
+      - maxNozzleTempC
+      - maxBedTempC
+      - chamberHeated
+      - chamberMaxTempC
+      - enclosureType
+      - nozzleCompatibility
+      - hardenedNozzleRecommended
+      - amsOrMultiMaterialSupport
+      - notes
+
+  MaterialBrand:
+    fields:
+      - brandId
+      - displayName
+      - slug
+      - website
+      - active
+      - notes
+
+  MaterialFamily:
+    fields:
+      - familyId
+      - normalizedName
+      - aliases
+      - category
+      - description
+      - reinforcement
+      - flexible
+      - resinOrFilament
+
+  Material:
+    fields:
+      - materialId
+      - brandId
+      - familyId
+      - productLine
+      - displayName
+      - sku
+      - diameter
+      - color
+      - finish
+      - weightGrams
+      - unit
+      - formFactor
+      - status
+      - dryingRequired
+      - dryingNotes
+      - recommendedPrinterIds
+      - tags
+      - sourceReference
+      - lastValidatedAt
+      - metadata
+
+  BuildJob:
+    fields:
+      - buildJobId
+      - projectId
+      - projectFileRevisionId
+      - printerId
+      - materialId
+      - assignedToUid
+      - queuedAt
+      - startedAt
+      - endedAt
+      - jobStatus
+      - outcome
+      - quantityPlanned
+      - quantityCompleted
+      - estimatedPrintTimeMinutes
+      - actualPrintTimeMinutes
+      - estimatedMaterialUsedGrams
+      - actualMaterialUsedGrams
+      - failureReason
+      - notes
+      - snapshotImagePaths
+
+  ActivityEvent:
+    fields:
+      - eventId
+      - entityType
+      - entityId
+      - projectId
+      - actorUid
+      - actionType
+      - before
+      - after
+      - createdAt
+
+  Blocker:
+    fields:
+      - blockerId
+      - projectId
+      - title
+      - severity
+      - status
+      - assignedToUid
+      - createdByUid
+      - createdAt
+      - resolvedAt
+      - resolutionNotes
+
+KEY_ENUMS:
+  projectStatus:
+    - intake
+    - scoping
+    - design_in_progress
+    - ready_for_print
+    - queued
+    - printing
+    - post_processing
+    - validation
+    - complete
+    - on_hold
+    - cancelled
+
+  buildJobStatus:
+    - draft
+    - queued
+    - assigned
+    - preflight
+    - printing
+    - paused
+    - failed
+    - completed
+    - cancelled
+
+  printerOperationalStatus:
+    - available
+    - busy
+    - paused
+    - maintenance
+    - offline
+    - error
+    - reserved
+
+  materialStatus:
+    - approved
+    - standard
+    - experimental
+    - restricted
+    - deprecated
+    - retired
+
+MODELING_RULES:
+  - Store immutable file revisions.
+  - Never overwrite a file revision in place.
+  - Build jobs reference the exact file revision and exact material entry used.
+  - Printer state is a live projection. Job history is immutable event history.
+  - Materials are normalized into brand plus family plus product line for filtering and future analytics.
+  - Keep room for spool-lot tracking later even if not fully used in v1.
+
+END_TOON

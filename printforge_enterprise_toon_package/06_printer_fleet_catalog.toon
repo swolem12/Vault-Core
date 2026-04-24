@@ -1,0 +1,170 @@
+TOON_VERSION: 1.0
+DOC_TYPE: PRINTER_FLEET_CATALOG
+DOC_ID: printforge.printer_fleet
+TITLE: Seed Printer Fleet Catalog and Capability Profiles
+
+PURPOSE:
+  Seed the application with the printer models explicitly requested by the client, plus the schema needed to instantiate real shop-floor printers from those models.
+
+MODEL_SEEDS:
+  - brand: Bambu Lab
+    model: A1
+    slug: bambu_lab_a1
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-bambu-a1
+    buildVolumeMm: [256, 256, 256]
+    notes:
+      - bed-slinger format
+      - internal seed should mark as suitable for common PLA/PETG/TPU workflows depending nozzle and configuration
+      - use brand-aware iconography and a clean equipment card
+
+  - brand: Bambu Lab
+    model: P1S
+    slug: bambu_lab_p1s
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-bambu-p1s
+    buildVolumeMm: [256, 256, 256]
+    notes:
+      - enclosed CoreXY machine
+      - strong default choice for general internal production
+
+  - brand: Bambu Lab
+    model: X1C
+    slug: bambu_lab_x1c
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-bambu-x1c
+    buildVolumeMm: [256, 256, 256]
+    notes:
+      - engineering-capable flagship-class desktop printer
+      - good fit for reinforced materials with proper setup
+
+  - brand: Bambu Lab
+    model: X1E
+    slug: bambu_lab_x1e
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-bambu-x1e
+    buildVolumeMm: [256, 256, 256]
+    notes:
+      - enterprise-oriented variant
+      - active chamber heating and network/security-oriented features should be modeled in capability metadata
+
+  - brand: Anycubic
+    model: Kobra S1
+    slug: anycubic_kobra_s1
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-anycubic-kobra-s1
+    buildVolumeMm: [250, 250, 250]
+    notes:
+      - enclosed CoreXY seed entry
+      - keep compatibility settings configurable by admin
+
+  - brand: Creality
+    model: K2 Plus
+    slug: creality_k2_plus
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-creality-k2-plus
+    buildVolumeMm: [350, 350, 350]
+    notes:
+      - large-format production candidate
+      - multi-color support should be represented as optional capability, not assumed required
+
+  - brand: Sovol
+    model: SV08
+    slug: sovol_sv08
+    printerType: fdm
+    technology: FFF
+    iconKey: printer-sovol-sv08
+    buildVolumeMm: [350, 350, 345]
+    notes:
+      - open-source-friendly large-format CoreXY seed
+      - capability profile should allow community-tuned configuration notes
+
+  - brand: Elegoo
+    model: Saturn 4 Ultra 16K
+    slug: elegoo_saturn_4_ultra_16k
+    printerType: resin
+    technology: MSLA
+    iconKey: printer-elegoo-saturn-4-ultra-16k
+    buildVolumeMm: [211.68, 118.37, 220]
+    notes:
+      - resin workflow machine
+      - resin-safe UX flows and resin material family filtering required
+
+REAL_PRINTER_INSTANCE_FIELDS:
+  When a real machine is created from a model seed, instantiate:
+    - printerId
+    - brand
+    - model
+    - nickname
+    - serialNumber
+    - assetTag
+    - bayOrRoom
+    - locationId
+    - operatorNotes
+    - activeNozzleSize
+    - activeNozzleMaterial
+    - activePlateType
+    - firmwareVersion
+    - operationalStatus
+    - maintenanceStatus
+    - preferredMaterialIds
+    - multiMaterialEnabled
+    - cameraEnabled
+    - lastServiceDate
+
+ICON_SYSTEM:
+  - Store iconKey on each model and printer record
+  - Provide a local SVG icon component registry keyed by iconKey
+  - Avoid hotlinking external brand assets at runtime
+  - v1 icons may be stylized monochrome silhouettes with brand labels
+  - support dark mode and light mode variants
+
+CAPABILITY_FLAGS:
+  - enclosed
+  - chamberHeated
+  - hardenedNozzleRecommended
+  - multiMaterialCapable
+  - resinMachine
+  - engineeringMaterialFriendly
+  - flexibleMaterialFriendly
+  - largeFormat
+  - networkManaged
+  - cameraSupported
+
+UI_CARD_FIELDS_FOR_PRINTER_LIST:
+  - icon
+  - nickname
+  - brand + model
+  - status pill
+  - active job
+  - current project
+  - material in use
+  - last updated
+  - location
+  - utilization today
+  - quick actions
+
+QUEUE_RULES:
+  - one active job per printer
+  - future jobs can be queued
+  - show estimated release time
+  - allow reserve windows for maintenance or high-priority builds
+
+NOTES_FROM_OFFICIAL_MODEL VERIFICATION:
+  Selected official references checked 2026-04-23 indicated the following seed-aligned machine profiles:
+    - Bambu Lab A1: 256 x 256 x 256 mm build volume
+    - Bambu Lab P1S: 256 x 256 x 256 mm build volume
+    - Bambu Lab X1C: X1 series product line, 256 x 256 x 256 mm build volume on technical spec source
+    - Bambu Lab X1E: 256 x 256 x 256 mm build volume, active chamber heating support
+    - Anycubic Kobra S1: 250 x 250 x 250 mm build volume
+    - Creality K2 Plus: 350 x 350 x 350 mm build volume
+    - Sovol SV08: 350 x 350 x 345 mm build volume
+    - Elegoo Saturn 4 Ultra 16K: high-speed 16K resin platform with 150 mm/h maximum speed and resin-oriented smart monitoring features
+
+END_TOON

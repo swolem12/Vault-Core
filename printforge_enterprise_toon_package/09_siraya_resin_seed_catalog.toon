@@ -1,0 +1,169 @@
+TOON_VERSION: 1.0
+DOC_TYPE: SIRAYA_RESIN_SEED_CATALOG
+DOC_ID: printforge.siraya_resin_seed_catalog
+TITLE: Siraya Tech Resin Seed Catalog
+
+PURPOSE:
+  Incorporate Siraya Tech resins into the material system with resin-safe fields, compatibility filters, and engineering-focused descriptions.
+
+REASON:
+  The client explicitly requested all Siraya Tech resins to be incorporated.
+  The implementation should therefore provide:
+    - a Siraya Tech brand record
+    - resin family mappings
+    - seed SKUs or product lines
+    - future adapter-friendly structure
+
+BRAND_RECORD:
+  brandId: brand_siraya_tech
+  displayName: Siraya Tech
+  website: https://siraya.tech
+  resinOrFilament: resin
+
+OFFICIAL_COLLECTION_AWARENESS:
+  Official Siraya Tech pages checked on 2026-04-23 showed 3D printing resin collections and engineering resin groupings that explicitly reference product lines including:
+    - Tenacious
+    - Blu
+    - Magna
+  Official site collection references also show a broader 3D printing resin catalog that the app should model as a flexible registry rather than a fixed hardcoded trio.
+
+SEED_RESIN_PRODUCT_LINES:
+  - displayName: Fast
+    familyId: FAST_MODEL
+    notes:
+      - rapid general-purpose printing line
+      - likely candidate for model and prototype workflows
+
+  - displayName: Build
+    familyId: FAST_MODEL
+    notes:
+      - functional prototype-oriented naming
+      - app should allow threaded-hole or fit-test notes if the team uses it that way
+
+  - displayName: Blu
+    familyId: TOUGH
+    notes:
+      - tough engineering-oriented resin line
+
+  - displayName: Tenacious
+    familyId: FLEXIBLE
+    notes:
+      - impact-resistant and flexible engineering line
+      - useful to model as blend-capable if internal team mixes workflows
+
+  - displayName: Magna
+    familyId: TOUGH
+    notes:
+      - durable engineering resin line
+
+  - displayName: Sculpt
+    familyId: SCULPT
+    notes:
+      - sculptural or high-detail finishing workflows
+
+  - displayName: Cast
+    familyId: CASTABLE
+    notes:
+      - castable workflow category
+
+  - displayName: Mecha
+    familyId: ABS_LIKE
+    notes:
+      - ABS-like positioning for miniature or model usage
+
+  - displayName: Simple
+    familyId: ABS_LIKE
+    notes:
+      - easier-entry resin family for general use
+
+  - displayName: Easy
+    familyId: ABS_LIKE
+    notes:
+      - simplified beginner-friendly or easy-use line when present in catalog context
+
+SEED_SAMPLE_RECORDS:
+  - materialId: resin_siraya_fast_gray
+    brandId: brand_siraya_tech
+    familyId: FAST_MODEL
+    displayName: Siraya Tech Fast
+    productLine: Fast
+    resinOrFilament: resin
+    status: standard
+    validationState: seeded
+
+  - materialId: resin_siraya_blu_clear
+    brandId: brand_siraya_tech
+    familyId: TOUGH
+    displayName: Siraya Tech Blu
+    productLine: Blu
+    resinOrFilament: resin
+    status: standard
+    validationState: seeded
+
+  - materialId: resin_siraya_tenacious_black
+    brandId: brand_siraya_tech
+    familyId: FLEXIBLE
+    displayName: Siraya Tech Tenacious
+    productLine: Tenacious
+    resinOrFilament: resin
+    status: experimental
+    validationState: seeded
+
+  - materialId: resin_siraya_magna_gray
+    brandId: brand_siraya_tech
+    familyId: TOUGH
+    displayName: Siraya Tech Magna
+    productLine: Magna
+    resinOrFilament: resin
+    status: standard
+    validationState: seeded
+
+  - materialId: resin_siraya_sculpt
+    brandId: brand_siraya_tech
+    familyId: SCULPT
+    displayName: Siraya Tech Sculpt
+    productLine: Sculpt
+    resinOrFilament: resin
+    status: standard
+    validationState: seeded
+
+  - materialId: resin_siraya_cast
+    brandId: brand_siraya_tech
+    familyId: CASTABLE
+    displayName: Siraya Tech Cast
+    productLine: Cast
+    resinOrFilament: resin
+    status: experimental
+    validationState: seeded
+
+  - materialId: resin_siraya_mecha
+    brandId: brand_siraya_tech
+    familyId: ABS_LIKE
+    displayName: Siraya Tech Mecha
+    productLine: Mecha
+    resinOrFilament: resin
+    status: standard
+    validationState: seeded
+
+RESIN_SPECIFIC_FIELDS:
+  - viscosityClass
+  - recommendedWavelength
+  - washType
+  - cureNotes
+  - flexLevel
+  - impactResistanceNotes
+  - recommendedUseCase
+  - brittleRisk
+  - odorNotes
+  - blendFriendly
+  - printerCompatibilityNotes
+
+RESIN_UI_REQUIREMENTS:
+  - automatically show resin-safe color treatment
+  - separate resin from filament in selectors
+  - show compatible resin printers only
+  - show wash/cure notes panel
+  - show engineering warnings
+  - support mix notes for internal workflows
+
+END_TOON

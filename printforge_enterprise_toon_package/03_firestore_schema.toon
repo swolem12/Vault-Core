@@ -1,0 +1,277 @@
+TOON_VERSION: 1.0
+DOC_TYPE: FIRESTORE_SCHEMA
+DOC_ID: printforge.firestore_schema
+TITLE: Cloud Firestore Schema Design
+
+FIRESTORE_REASONING:
+  Firestore is document-oriented, uses collections and documents, and supports real-time listeners well for dashboards, live boards, and collaborative project updates.
+  Keep hot operational data shallow and queryable.
+  Keep heavy binary files in Cloud Storage, not Firestore.
+
+TOP_LEVEL_COLLECTIONS:
+  organizations
+  users
+  projects
+  printers
+  materials
+  materialBrands
+  materialFamilies
+  buildJobs
+  notifications
+  activityEvents
+  savedViews
+  adminConfig
+
+COLLECTION_DESIGN:
+  organizations/{orgId}
+    fields:
+      name
+      slug
+      createdAt
+      updatedAt
+      settings
+      subscriptionTier
+      active
+
+  users/{uid}
+    fields:
+      orgId
+      displayName
+      email
+      photoURL
+      role
+      teamId
+      active
+      createdAt
+      updatedAt
+      lastSeenAt
+      favoriteProjectIds
+      favoritePrinterIds
+
+  projects/{projectId}
+    fields:
+      orgId
+      title
+      code
+      description
+      priority
+      status
+      lifecycleStage
+      ownerUid
+      collaboratorUids
+      requestedMaterialId
+      preferredPrinterIds
+      dueDate
+      blocked
+      archived
+      tagIds
+      latestActivityAt
+      createdAt
+      updatedAt
+    subcollections:
+      files
+      revisions
+      comments
+      blockers
+      milestones
+      activity
+
+  projects/{projectId}/files/{fileArtifactId}
+    fields:
+      kind
+      canonicalName
+      latestRevisionId
+      storageFolder
+      active
+      createdBy
+      createdAt
+      updatedAt
+
+  projects/{projectId}/revisions/{revisionId}
+    fields:
+      fileArtifactId
+      filename
+      extension
+      mimeType
+      sizeBytes
+      checksumSha256
+      storagePath
+      uploadedBy
+      uploadedAt
+      revisionNumber
+      status
+      slicer
+      slicerVersion
+      printerProfile
+      materialProfile
+      parsedMetadata
+      previewImagePath
+      isCurrent
+      isDeletedLogical
+
+  printers/{printerId}
+    fields:
+      orgId
+      brand
+      model
+      nickname
+      serialNumber
+      assetTag
+      printerType
+      locationId
+      operationalStatus
+      queueStatus
+      ownerTeamId
+      capabilityProfile
+      iconKey
+      supportedMaterialFamilyIds
+      currentJobId
+      notes
+      active
+      createdAt
+      updatedAt
+      lastHeartbeatAt
+    subcollections:
+      jobs
+      maintenance
+      telemetrySnapshots
+
+  materials/{materialId}
+    fields:
+      orgId
+      brandId
+      familyId
+      productLine
+      displayName
+      sku
+      diameter
+      color
+      finish
+      weightGrams
+      formFactor
+      status
+      dryingRequired
+      dryingNotes
+      sourceReference
+      metadata
+      tags
+      createdAt
+      updatedAt
+
+  materialBrands/{brandId}
+    fields:
+      orgId
+      displayName
+      slug
+      website
+      active
+      notes
+      createdAt
+      updatedAt
+
+  materialFamilies/{familyId}
+    fields:
+      orgId
+      normalizedName
+      aliases
+      category
+      reinforcement
+      flexible
+      resinOrFilament
+      description
+      createdAt
+      updatedAt
+
+  buildJobs/{buildJobId}
+    fields:
+      orgId
+      projectId
+      projectFileRevisionId
+      printerId
+      materialId
+      assignedToUid
+      status
+      outcome
+      quantityPlanned
+      quantityCompleted
+      estimatedPrintTimeMinutes
+      actualPrintTimeMinutes
+      estimatedMaterialUsedGrams
+      actualMaterialUsedGrams
+      startedAt
+      endedAt
+      queuedAt
+      failureReason
+      notes
+      snapshotImagePaths
+      createdAt
+      updatedAt
+
+  activityEvents/{eventId}
+    fields:
+      orgId
+      projectId
+      entityType
+      entityId
+      actorUid
+      actionType
+      before
+      after
+      createdAt
+
+  notifications/{notificationId}
+    fields:
+      orgId
+      recipientUid
+      type
+      title
+      body
+      relatedEntityType
+      relatedEntityId
+      read
+      createdAt
+
+INDEX_STRATEGY:
+  projects:
+    - orgId + archived + status + updatedAt desc
+    - orgId + ownerUid + status + updatedAt desc
+    - orgId + blocked + priority + dueDate asc
+    - orgId + dueDate asc + status
+  printers:
+    - orgId + operationalStatus + updatedAt desc
+    - orgId + brand + model
+    - orgId + currentJobId
+  materials:
+    - orgId + brandId + familyId + displayName
+    - orgId + status + familyId
+    - orgId + formFactor + familyId
+  buildJobs:
+    - orgId + status + queuedAt asc
+    - orgId + printerId + startedAt desc
+    - orgId + projectId + createdAt desc
+
+SECURITY_MODEL:
+  - Every document must include orgId except root admin config that is system scoped.
+  - Clients can only read documents where request.auth uid belongs to matching orgId.
+  - Write privileges are role based.
+  - Activity events should be append-only by function when possible.
+  - File revisions should be created through controlled upload flow, not direct random writes.
+
+DENORMALIZATION_GUIDE:
+  Add cached fields where it makes UX faster:
+    - project.ownerDisplayName
+    - printer.displayName
+    - material.brandName
+    - material.familyName
+    - buildJob.projectTitle
+  Use functions to keep them synchronized.
+
+REALTIME_LISTENERS:
+  Use listeners on:
+    - project summary cards
+    - build queue
+    - printer fleet board
+    - user notifications
+  Avoid listeners on large historical collections when pagination is enough.
+
+END_TOON

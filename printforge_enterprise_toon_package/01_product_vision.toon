@@ -1,0 +1,110 @@
+TOON_VERSION: 1.0
+DOC_TYPE: PRODUCT_VISION
+DOC_ID: printforge.product_vision
+TITLE: Product Vision and Operating Concept
+
+PROBLEM:
+  Internal 3D print engineering teams usually end up operating across fragmented tools:
+    - slicers for files
+    - cloud drives for uploads
+    - spreadsheets for print queues
+    - chat apps for coordination
+    - whiteboards for printer status
+    - tribal knowledge for material selection
+  This creates ambiguity, wasted machine time, duplicate effort, and poor traceability.
+
+VISION:
+  PrintForge Ops becomes the operational command center for additive manufacturing execution.
+  It gives engineering teams one place to manage projects, managed file uploads, printer assignments, material selection, queue status, and accountability.
+
+CORE USER TYPES:
+  - admin
+  - engineering lead
+  - manufacturing engineer
+  - printer operator
+  - technician
+  - designer
+  - viewer or stakeholder
+
+USER STORIES:
+  - As an engineering lead, I want to see every active project, owner, due date, and current manufacturing state on one screen.
+  - As a technician, I want to upload the latest .3mf file revision to a project and mark it as candidate, approved, or superseded.
+  - As a printer operator, I want to assign a printer, material, layer profile, and start a build job without editing the master project metadata manually.
+  - As an admin, I want to define internal printers, material catalogs, and role permissions.
+  - As a stakeholder, I want dashboards showing utilization, throughput, and blockers without touching raw machine settings.
+
+BUSINESS VALUE:
+  - fewer lost files
+  - fewer unowned projects
+  - faster shift handoff
+  - clearer engineering accountability
+  - material standardization
+  - better printer utilization
+  - audit trail for who changed what
+  - cleaner foundation for future automation and MES-lite workflows
+
+PRIMARY MODULES:
+  - Auth and Identity
+  - Project Workspace
+  - File Vault
+  - Build Queue
+  - Printer Fleet
+  - Material Registry
+  - Activity Feed
+  - Dashboards and Reports
+  - Admin Console
+
+PROJECT OBJECT:
+  Every project should answer:
+    - what are we building
+    - why are we building it
+    - who owns it
+    - what files drive it
+    - what material is intended
+    - what printer is intended
+    - what state is it in
+    - what is blocking it
+    - what was printed already
+    - what changed last
+
+PRINCIPLES:
+  - One source of truth for internal additive execution
+  - File traceability over file chaos
+  - Shop-floor clarity over PM jargon
+  - Fast data entry over beautiful complexity
+  - Simple first-run flows, deep power tools later
+  - Extensible schema from day one
+  - Real-time visibility by default
+
+RECOMMENDED V1 NAVIGATION:
+  - Overview
+  - Projects
+  - Build Queue
+  - Printers
+  - Materials
+  - Files
+  - Analytics
+  - Admin
+
+RECOMMENDED PROJECT DETAIL TABS:
+  - Summary
+  - Files
+  - Builds
+  - Materials
+  - Comments
+  - History
+  - Blockers
+
+V2 DIRECTIONS:
+  - QR labels for projects and printer bays
+  - machine health monitoring
+  - print duration predictions
+  - estimated cost by print
+  - automatic material depletion forecasts
+  - approval workflows for production release
+  - customer-specific internal programs
+  - maintenance schedules and downtime prediction
+  - camera feeds and remote print room overview
+  - lot traceability and print farm optimization
+
+END_TOON

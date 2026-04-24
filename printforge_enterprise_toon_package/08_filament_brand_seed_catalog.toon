@@ -1,0 +1,226 @@
+TOON_VERSION: 1.0
+DOC_TYPE: FILAMENT_BRAND_SEED_CATALOG
+DOC_ID: printforge.filament_seed_catalog
+TITLE: Seed Filament Brand Catalog and Import Strategy
+
+IMPORTANT_TRUTH:
+  The global filament market is too large and too dynamic to hardcode every brand and every SKU manually in one pass.
+  Therefore the platform must ship with:
+    - a strong normalized taxonomy
+    - a useful starter seed dataset
+    - admin-managed catalog tools
+    - CSV import
+    - future vendor adapter pipelines
+
+SEED_BRANDS_MAJOR:
+  - Bambu Lab
+  - Polymaker
+  - Fiberon by Polymaker
+  - eSUN
+  - Prusament
+  - Overture
+  - Hatchbox
+  - MatterHackers
+  - ColorFabb
+  - SUNLU
+  - Creality
+  - Anycubic
+  - Elegoo
+  - Inland
+  - Proto-Pasta
+  - BASF Ultrafuse
+  - FormFutura
+  - Raise3D
+  - 3DXTech
+  - Siraya Tech Filament Line if internal team decides to stock it
+
+SEED_BRAND_RECORDS:
+  - brandId: brand_bambu_lab
+    displayName: Bambu Lab
+    website: https://bambulab.com
+    seedFamilies:
+      - PLA
+      - PETG
+      - TPU_95A
+      - ABS
+      - ASA
+      - PC
+      - support families
+      - reinforced variants depending current catalog
+
+  - brandId: brand_polymaker
+    displayName: Polymaker
+    website: https://shop.polymaker.com
+    seedFamilies:
+      - PLA
+      - PLA_PRO
+      - PETG
+      - ABS
+      - ASA
+      - TPU_95A
+      - PC
+      - PA families
+      - support families
+
+  - brandId: brand_fiberon
+    displayName: Fiberon by Polymaker
+    website: https://fiberon.polymaker.com
+    seedFamilies:
+      - PET_CFx
+      - PETG_rCF
+      - PA6_CF
+      - PA12_CF
+      - PA612_CF
+      - PPS_CF
+      - PPS_GF
+      - PETG_ESD
+      - engineering reinforced lines
+
+  - brandId: brand_esun
+    displayName: eSUN
+    website: https://www.esun3d.com
+    seedFamilies:
+      - PLA
+      - PLA_PLUS
+      - LW_PLA
+      - PETG
+      - ABS
+      - ASA
+      - TPU_95A
+      - TPE
+      - PVA
+      - HIPS
+      - PA
+      - PC
+
+SEED_SAMPLE_MATERIALS:
+  - materialId: mat_seed_bambu_pla_basic
+    brandId: brand_bambu_lab
+    familyId: PLA
+    displayName: PLA Basic
+    productLine: Basic
+    resinOrFilament: filament
+    diameter: 1.75
+    status: standard
+    validationState: seeded
+
+  - materialId: mat_seed_bambu_petg_hf
+    brandId: brand_bambu_lab
+    familyId: PETG_HS
+    displayName: PETG HF
+    productLine: HF
+    resinOrFilament: filament
+    diameter: 1.75
+    status: standard
+    validationState: seeded
+
+  - materialId: mat_seed_polymaker_pla_pro
+    brandId: brand_polymaker
+    familyId: PLA_PRO
+    displayName: PLA Pro
+    productLine: PLA Pro
+    resinOrFilament: filament
+    diameter: 1.75
+    status: standard
+    validationState: seeded
+
+  - materialId: mat_seed_fiberon_pa6_cf20
+    brandId: brand_fiberon
+    familyId: PA6_CF
+    displayName: Fiberon PA6-CF20
+    productLine: Fiberon
+    resinOrFilament: filament
+    diameter: 1.75
+    status: experimental
+    validationState: seeded
+
+  - materialId: mat_seed_esun_pla_plus
+    brandId: brand_esun
+    familyId: PLA_PLUS
+    displayName: PLA+
+    productLine: PLA+
+    resinOrFilament: filament
+    diameter: 1.75
+    status: standard
+    validationState: seeded
+
+IMPORT_WORKFLOWS:
+  manual_create:
+    - admin fills brand
+    - selects family
+    - enters vendor name
+    - enters diameter
+    - optional material notes
+  csv_import:
+    columns:
+      - brand
+      - family
+      - displayName
+      - productLine
+      - diameter
+      - color
+      - spoolWeightGrams
+      - status
+      - notes
+  vendor_adapter_future:
+    - fetch catalog pages or feeds
+    - normalize to internal family ids
+    - mark importedAt
+    - flag changed products for admin review
+
+NORMALIZATION_EXAMPLES_FROM_CLIENT REQUEST:
+  requested_input: PLA
+  normalized_family: PLA
+
+  requested_input: PLA HS
+  normalized_family: PLA_HS
+
+  requested_input: ePLA
+  normalized_family: EPLA
+
+  requested_input: PLA+
+  normalized_family: PLA_PLUS
+
+  requested_input: petg-hs
+  normalized_family: PETG_HS
+
+  requested_input: TPU85a
+  normalized_family: TPU_85A
+
+  requested_input: tpu 90a
+  normalized_family: TPU_90A
+
+  requested_input: tpu 95a
+  normalized_family: TPU_95A
+
+  requested_input: paht-cf
+  normalized_family: PAHT_CF
+
+  requested_input: pa6-nylon
+  normalized_family: PA6
+
+  requested_input: pla copper
+  normalized_family: PLA_METAL_COPPER
+
+  requested_input: pla steel
+  normalized_family: PLA_METAL_STEEL
+
+CATALOG_UI_REQUIREMENTS:
+  - searchable table
+  - create brand
+  - create material
+  - bulk import CSV
+  - tag materials by approval state
+  - compare material families
+  - printer compatibility suggestions
+  - usage counts across build jobs
+  - most used materials chart
+  - low-stock future placeholder fields
+
+SOURCE_NOTES:
+  Official vendor catalog references checked on 2026-04-23 supported a seed approach and confirmed that:
+    - Bambu Lab maintains an official filament collection structure
+    - Polymaker maintains official branded filament storefronts and Fiberon composite line references
+    - eSUN maintains official filament category structures spanning PLA, PETG, TPU, ABS, and more
+
+END_TOON

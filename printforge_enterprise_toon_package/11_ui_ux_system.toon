@@ -1,0 +1,155 @@
+TOON_VERSION: 1.0
+DOC_TYPE: UI_UX_SYSTEM
+DOC_ID: printforge.uiux
+TITLE: UI, UX, Visual Language, and Interaction Design
+
+DESIGN_DIRECTION:
+  Clean enterprise manufacturing software with strong visual hierarchy, quick situational awareness, and modern micro-interactions.
+  It should feel more like a premium operations command center than a boring spreadsheet wrapper.
+
+VISUAL_PRIORITIES:
+  - readability first
+  - real-time confidence
+  - fast scanning
+  - low cognitive overhead
+  - premium but restrained
+  - dark-mode excellence
+
+AESTHETIC:
+  - modern engineering dashboard
+  - subtle glass, depth, and shadow layers
+  - crisp cards and dense professional tables
+  - animated status changes without gimmick overload
+  - polished transitions similar to advanced design-system-grade SaaS products
+
+COLOR_SYSTEM:
+  semantic:
+    - success = green family
+    - warning = amber family
+    - error = red family
+    - info = blue family
+    - neutral = zinc/slate family
+  material_class:
+    - filament = cool blue accent
+    - resin = purple accent
+    - high-risk material = orange or red accent border
+  printer_status:
+    - available = green
+    - busy = blue
+    - paused = amber
+    - maintenance = purple
+    - offline = slate
+    - error = red
+
+LAYOUTS:
+  overview_dashboard:
+    - top KPI strip
+    - active project board
+    - printer fleet grid
+    - build queue panel
+    - recent activity feed
+  projects_page:
+    - filter bar
+    - kanban/list toggle
+    - saved views
+    - dense sortable table
+  project_detail:
+    - hero header
+    - left summary rail
+    - main tabbed workspace
+    - right-side activity or blocker drawer optional
+  printer_page:
+    - card grid or table
+    - occupancy overlays
+    - maintenance badges
+    - active job summary
+  materials_page:
+    - catalog table
+    - faceted filters
+    - comparison drawer
+    - create/import actions
+
+MOTION_RULES:
+  - 150ms to 250ms for standard micro-interactions
+  - 250ms to 400ms for panel transitions
+  - use motion to reinforce state change, not decorate emptiness
+  - animate status pills, drawer reveals, queue reorders, upload progress, and KPI count updates
+
+COMPONENTS_REQUIRED:
+  - app shell
+  - responsive sidebar
+  - sticky filter toolbar
+  - KPI stat cards
+  - kanban board
+  - dense data table
+  - file upload dropzone
+  - preview cards
+  - printer cards
+  - material chips
+  - timeline / activity feed
+  - audit diff modal
+  - multi-step create project wizard
+  - modal to create build job
+  - empty states
+  - skeleton loaders
+  - toast system
+  - confirmation dialogs
+  - search command palette
+
+PRINTER_ICON_STRATEGY:
+  - use local icon registry
+  - each printer model gets a silhouette card image or SVG badge
+  - support manufacturer pill next to model
+  - expose iconKey so design system can map to custom assets later
+
+PROJECT_CARD_FIELDS:
+  - title
+  - code
+  - owner avatar/name
+  - status
+  - blocked badge
+  - due date
+  - current revision
+  - printer target
+  - material target
+  - progress bar
+  - quick action menu
+
+UPLOAD_EXPERIENCE:
+  - drag and drop
+  - progress bar
+  - checksum / duplicate hint
+  - parsing state badge
+  - preview thumbnail
+  - mark as current revision action
+  - revision compare entry
+
+SEARCH_EXPERIENCE:
+  global command palette should search:
+    - projects
+    - printers
+    - materials
+    - build jobs
+    - users
+    - file revisions
+
+MOBILE_BEHAVIOR:
+  - read-only dashboards and light edits should still work
+  - primary optimization target remains desktop and tablet
+  - printer assignment drawer and queue operations must remain usable on tablet in a print room
+
+ACCESSIBILITY:
+  - high contrast status badges
+  - keyboard navigation for tables and dialogs
+  - visible focus states
+  - clear button labeling
+  - non-color-only status indicators
+
+COPY_TONE:
+  - direct
+  - operational
+  - zero fluff
+  - friendly but technical
+  - use manufacturing wording that operators understand instantly
+
+END_TOON

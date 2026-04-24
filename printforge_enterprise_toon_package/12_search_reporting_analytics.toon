@@ -1,0 +1,114 @@
+TOON_VERSION: 1.0
+DOC_TYPE: SEARCH_REPORTING_ANALYTICS
+DOC_ID: printforge.analytics
+TITLE: Search, Reporting, and Analytics
+
+SEARCH_REQUIREMENTS:
+  global_search_entities:
+    - projects
+    - printers
+    - materials
+    - build jobs
+    - file revisions
+    - users
+
+SEARCH_FIELDS:
+  projects:
+    - title
+    - code
+    - description
+    - owner
+    - tags
+  printers:
+    - nickname
+    - brand
+    - model
+    - serialNumber
+    - assetTag
+  materials:
+    - displayName
+    - family
+    - brand
+    - aliases
+    - color
+  files:
+    - filename
+    - canonicalName
+    - slicer
+    - printerProfile
+    - materialProfile
+  buildJobs:
+    - buildJobId
+    - projectTitle
+    - printerNickname
+    - jobStatus
+    - assignedTo
+
+SEARCH_IMPLEMENTATION_OPTIONS:
+  v1:
+    - Firestore prefix search for curated fields
+    - normalized lowercase search tokens
+  v2:
+    - Algolia or Meilisearch
+    - ranking by recency and relevance
+    - semantic search for notes and descriptions
+
+DASHBOARD_KPIS:
+  - active projects
+  - blocked projects
+  - queued jobs
+  - printers in use
+  - printers offline
+  - completed jobs this week
+  - failed jobs this week
+  - material usage this week
+  - average queue age
+  - utilization by printer
+  - top materials by job count
+
+REPORTS_V1:
+  - printer utilization by day/week/month
+  - project throughput by owner
+  - job failure reasons
+  - materials used by family and brand
+  - overdue projects
+  - jobs completed by printer
+  - jobs completed by operator
+  - revision upload activity
+  - resin vs filament mix
+  - large-format printer load
+
+CHART_TYPES:
+  - line charts for throughput over time
+  - bar charts for utilization and failures
+  - donut charts for status distribution
+  - stacked bars for material mix
+  - heatmap for printer busy hours
+  - leaderboard cards for top operators and top-loaded machines
+
+SAVED_VIEWS:
+  users should be able to save:
+    - filter combinations
+    - sort order
+    - page density
+    - column visibility
+    - default landing view
+
+CSV_EXPORTS:
+  export_entities:
+    - projects
+    - printers
+    - materials
+    - build jobs
+    - activity events
+  export_rules:
+    - respect org boundary
+    - role-based permission
+    - timestamp filenames
+    - include filter summary in metadata block if practical
+
+BIGQUERY_FUTURE:
+  For heavier analytics, stream normalized activity and job events to BigQuery.
+  Keep Firestore operational. Keep warehouse analytical.
+
+END_TOON

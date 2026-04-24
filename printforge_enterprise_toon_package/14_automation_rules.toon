@@ -1,0 +1,72 @@
+TOON_VERSION: 1.0
+DOC_TYPE: AUTOMATION_RULES
+DOC_ID: printforge.automation_rules
+TITLE: Automation and Event Rules
+
+AUTOMATION_OBJECTIVE:
+  Reduce manual coordination load without removing operator control.
+
+EVENT_TRIGGERS:
+  onProjectCreated:
+    - create initial activity event
+    - notify owner if assigned
+  onRevisionUploaded:
+    - append activity event
+    - parse .3mf if applicable
+    - notify project owner
+  onRevisionApprovedCurrent:
+    - supersede previous current revision
+    - update project latestActivityAt
+  onBuildJobQueued:
+    - set project status = queued if not printing
+    - notify assigned operator
+  onBuildJobPrinting:
+    - set printer status = busy
+    - set project status = printing
+  onBuildJobCompleted:
+    - clear printer currentJobId
+    - set printer status = available unless manually reserved
+    - update project status = post_processing or validation if no other active jobs
+  onBuildJobFailed:
+    - clear printer currentJobId if safe
+    - set printer status = error or available based on operator input
+    - prompt retry flow
+    - notify project owner and engineering lead
+  onBlockerOpened:
+    - set project.blocked = true
+    - alert owner
+  onAllBlockersResolved:
+    - set project.blocked = false
+
+NOTIFICATION_PRIORITIES:
+  low:
+    - comment added
+    - project updated
+  medium:
+    - job queued
+    - revision uploaded
+    - project nearing due date
+  high:
+    - build failed
+    - blocker opened
+    - printer error
+    - overdue critical project
+
+AUTOMATION_GUARDRAILS:
+  - never auto-approve file revisions
+  - never auto-complete build jobs without explicit operator state transition
+  - never infer final success from storage upload alone
+  - never delete historical records via automation
+  - always log automation-generated events with actorUid = system
+
+FUTURE_AUTOMATIONS:
+  - due-date reminders
+  - machine idle alerts
+  - material deprecation warnings
+  - suggested printer selection based on material family and volume
+  - build-duration predictions
+  - duplicate project warnings
+  - out-of-spec material / printer pair warnings
+  - scheduled maintenance reminders after runtime thresholds
+
+END_TOON

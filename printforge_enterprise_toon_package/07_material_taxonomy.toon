@@ -1,0 +1,177 @@
+TOON_VERSION: 1.0
+DOC_TYPE: MATERIAL_TAXONOMY
+DOC_ID: printforge.material_taxonomy
+TITLE: Material Taxonomy, Normalization, and Filtering Model
+
+OBJECTIVE:
+  Build a normalized material system that can handle many brands, many aliases, and many variants without turning the UI into chaos.
+
+TOP_LEVEL_CLASSES:
+  - filament
+  - resin
+
+FILAMENT_FAMILIES_NORMALIZED:
+  - PLA
+  - PLA_PLUS
+  - PLA_PRO
+  - PLA_HS
+  - EPLA
+  - MATTE_PLA
+  - SILK_PLA
+  - PLA_CF
+  - PLA_GF
+  - PLA_METAL_COPPER
+  - PLA_METAL_STEEL
+  - LW_PLA
+  - PETG
+  - PETG_HS
+  - PETG_CF
+  - PETG_GF
+  - ABS
+  - ABS_FR
+  - ABS_GF
+  - ASA
+  - ASA_CF
+  - ASA_GF
+  - PC
+  - PC_FR
+  - PC_ABS
+  - TPU_85A
+  - TPU_90A
+  - TPU_95A
+  - TPE
+  - TPE_83A
+  - PEBA
+  - PA6
+  - PA6_CF
+  - PA6_GF
+  - PA12
+  - PA12_CF
+  - PAHT_CF
+  - PPA_CF
+  - PPS_CF
+  - PPS_GF
+  - SUPPORT_PVA
+  - SUPPORT_BVOH
+  - HIPS
+  - SPECIALTY_OTHER
+
+RESIN_FAMILIES_NORMALIZED:
+  - ABS_LIKE
+  - TOUGH
+  - FLEXIBLE
+  - HIGH_TEMP
+  - CASTABLE
+  - SCULPT
+  - FAST_MODEL
+  - CLEAR
+  - NYLON_LIKE
+  - ENGINEERING_OTHER
+
+ALIAS_EXAMPLES:
+  PLA_PLUS:
+    - PLA+
+    - PLA Plus
+    - PLA Pro when vendor intends improved toughness but not necessarily a separate marketing family
+  PLA_HS:
+    - High Speed PLA
+    - Hyper PLA if vendor branding maps to speed-optimized PLA
+  EPLA:
+    - ePLA
+    - easy PLA
+    - eco PLA when vendor uses ePLA naming
+  PETG_HS:
+    - HS PETG
+    - Hyper PETG
+    - Rapid PETG
+  TPU_95A:
+    - TPU 95A
+    - 95A TPU
+  PA6:
+    - Nylon 6
+    - PA6 Nylon
+
+MATERIAL_NORMALIZATION_RULES:
+  - Keep vendor-display names exactly as shipped in catalog rows.
+  - Map each catalog entry to a normalized familyId.
+  - Preserve raw alias strings for search.
+  - Do not force all vendor marketing names into one visible label in the UI; show both normalized family and vendor product name.
+  - Use a two-layer model:
+      layer_1 = normalized engineering family
+      layer_2 = vendor-specific product line
+
+RECOMMENDED_MATERIAL_FIELDS:
+  - materialId
+  - brandId
+  - familyId
+  - displayName
+  - productLine
+  - rawVendorName
+  - resinOrFilament
+  - reinforcement
+  - hardnessShore
+  - fireRetardant
+  - uvResistant
+  - foodContactClaim
+  - clearOrOpaque
+  - color
+  - diameter
+  - spoolWeightGrams
+  - requiresDrying
+  - dryingTemperatureC
+  - dryingDurationHours
+  - nozzleMinC
+  - nozzleMaxC
+  - bedMinC
+  - bedMaxC
+  - chamberRecommended
+  - abrasive
+  - odorRisk
+  - externalUseFriendly
+  - metadataSource
+  - validationState
+
+SEARCH_AND_FILTERS:
+  left_panel_filters:
+    - class
+    - family
+    - brand
+    - hardness
+    - abrasive
+    - reinforced
+    - color
+    - status
+    - diameter
+    - resin_safe_only
+    - printer_compatibility
+  chips:
+    - needs_drying
+    - flexible
+    - carbon_fiber
+    - glass_fiber
+    - high_speed
+    - flame_retardant
+    - outdoor
+    - engineering
+    - resin
+
+ENGINEERING WARNINGS:
+  - abrasive materials should surface nozzle wear warnings
+  - flexible materials should surface feeding complexity warnings
+  - reinforced nylons should surface drying warnings
+  - resin materials should not appear in FDM-only selectors
+  - printer-specific compatibility is advisory unless admin explicitly approves or restricts
+
+CATALOG_STRATEGY:
+  v1:
+    - ship with seeded normalized families
+    - ship with seeded major brand examples
+    - allow manual material creation
+    - allow CSV import
+  v2:
+    - vendor adapters
+    - scheduled sync jobs
+    - material recommendation engine
+    - machine-specific print profile linking
+
+END_TOON

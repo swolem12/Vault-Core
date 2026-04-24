@@ -1,0 +1,88 @@
+TOON_VERSION: 1.0
+DOC_TYPE: BUILD_PLAN
+DOC_ID: printforge.build_plan
+TITLE: Build Plan and Delivery Sequence
+
+PHASE_0_FOUNDATION:
+  goals:
+    - repo bootstrap
+    - design system skeleton
+    - Firebase config
+    - auth scaffold
+    - app shell
+  deliverables:
+    - Next.js app with protected routes
+    - Google login
+    - org-aware layout
+    - seed loaders
+    - dark mode
+    - core navigation
+
+PHASE_1_CORE_OPERATIONS:
+  goals:
+    - project CRUD
+    - printer CRUD
+    - material CRUD
+    - build job CRUD
+  deliverables:
+    - Projects page
+    - Project detail
+    - Printers page
+    - Materials page
+    - Build queue page
+    - audit events
+
+PHASE_2_FILE_MANAGEMENT:
+  goals:
+    - .3mf upload flow
+    - revision history
+    - parsing hooks
+    - preview support
+  deliverables:
+    - file artifact system
+    - storage integration
+    - revision compare list
+    - current revision controls
+
+PHASE_3_ANALYTICS:
+  goals:
+    - dashboard KPIs
+    - utilization views
+    - failure analysis
+  deliverables:
+    - overview dashboard
+    - analytics page
+    - CSV export
+
+PHASE_4_ADMIN_POLISH:
+  goals:
+    - role management
+    - imports
+    - saved views
+    - seed catalog editor
+  deliverables:
+    - admin console
+    - CSV importer
+    - permission testing
+    - onboarding polish
+
+TESTING_REQUIREMENTS:
+  - auth integration tests
+  - Firestore security rule tests
+  - form validation tests
+  - upload flow tests
+  - state transition tests
+  - printer assignment conflict tests
+  - mobile responsiveness smoke tests
+
+DEFINITION_OF_DONE_V1:
+  - user signs in with Google
+  - admin creates organization members and printers
+  - engineer creates project
+  - engineer uploads .3mf
+  - engineer or lead approves current revision
+  - operator creates and runs build job on assigned printer
+  - dashboards update in near real time
+  - activity feed reflects who changed what
+
+END_TOON

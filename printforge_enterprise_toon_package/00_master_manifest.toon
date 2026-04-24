@@ -1,0 +1,152 @@
+TOON_VERSION: 1.0
+DOC_TYPE: MASTER_MANIFEST
+DOC_ID: printforge.master_manifest
+TITLE: PrintForge Enterprise Software Solution Master Manifest
+STATUS: draft
+LAST_UPDATED: 2026-04-23
+OWNER: OpenAI ChatGPT
+INTENT: Define the full multi-file starter package for an enterprise-grade 3D print manufacturing project management platform.
+
+SUMMARY:
+  This package defines the starting architecture for a web-based enterprise platform used to manage internal 3D print engineering work.
+  This is NOT an ecommerce storefront and NOT an order tracker for customer sales.
+  This platform is for internal project execution, project visibility, printer utilization, material traceability, file control, accountability, analytics, and manufacturing workflow orchestration.
+
+NORTH_STAR:
+  Build a system where a shop lead can answer the following in under 10 seconds:
+    - What 3D print projects are active right now?
+    - Which printer is running which job?
+    - Which engineer owns each project?
+    - Which .3mf file revision is the latest approved build?
+    - Which filament or resin lot was used?
+    - Which prints are blocked, failed, waiting, or complete?
+    - Which printers are overbooked or idle?
+    - Which projects are consuming the most material and machine time?
+    - Which materials are preferred, approved, experimental, or restricted?
+
+PLATFORM_NAME:
+  PreferredWorkingName: PrintForge Ops
+  AlternateNames:
+    - ForgeFlow 3DP
+    - AdditiveOps
+    - ProtoCommand
+    - BuildCell HQ
+
+NON_GOALS:
+  - No direct customer storefront in v1
+  - No public quoting portal in v1
+  - No ERP replacement in v1
+  - No slicer replacement in v1
+  - No CAD editing engine in v1
+  - No PLM replacement in v1
+  - No auto-generating G-code directly from uploaded .3mf in v1 without approval gates
+
+PRIMARY_CAPABILITIES:
+  - Google authentication with Firebase
+  - Role-based internal access
+  - Real-time project board
+  - Upload and version control metadata for .3mf files
+  - Printer fleet registry
+  - Assignment of projects and queued build jobs to printers
+  - Material registry for filament and resin
+  - Seed catalogs for major printer models, materials, and Siraya Tech resins
+  - Machine utilization dashboard
+  - Material consumption tracking
+  - Audit history for user actions
+  - Search, filters, saved views, and reporting
+  - Notifications and blockers
+  - Admin tools for catalog management
+
+PACKAGE_FILES:
+  - 00_master_manifest.toon
+  - 01_product_vision.toon
+  - 02_domain_model.toon
+  - 03_firestore_schema.toon
+  - 04_storage_and_3mf_ingestion.toon
+  - 05_auth_roles_permissions.toon
+  - 06_printer_fleet_catalog.toon
+  - 07_material_taxonomy.toon
+  - 08_filament_brand_seed_catalog.toon
+  - 09_siraya_resin_seed_catalog.toon
+  - 10_workflow_states.toon
+  - 11_ui_ux_system.toon
+  - 12_search_reporting_analytics.toon
+  - 13_api_contracts.toon
+  - 14_automation_rules.toon
+  - 15_build_plan.toon
+
+RECOMMENDED_TECH_STACK:
+  frontend:
+    - Next.js
+    - React
+    - TypeScript
+    - Tailwind
+    - shadcn/ui
+    - Framer Motion
+    - React Query or TanStack Query
+    - Zustand or Jotai for local UI state
+  backend:
+    - Firebase Authentication
+    - Cloud Firestore
+    - Cloud Storage
+    - Cloud Functions or Cloud Run
+    - Firebase Hosting or Vercel
+  optional_integrations_future:
+    - Google Drive export
+    - Slack or Google Chat notifications
+    - Label printer support
+    - QR code scanning
+    - slicer profile sync
+    - machine telemetry ingestion
+    - barcode lot tracking
+    - maintenance scheduler
+
+REPOSITORY_LAYOUT:
+  /app
+  /components
+  /components/ui
+  /features/auth
+  /features/projects
+  /features/printers
+  /features/materials
+  /features/files
+  /features/jobs
+  /features/analytics
+  /features/admin
+  /lib/firebase
+  /lib/domain
+  /lib/utils
+  /lib/validators
+  /hooks
+  /types
+  /data/seeds
+  /public/icons/printers
+  /public/icons/materials
+  /public/brandmarks/vendors
+  /functions
+  /docs/toon
+  /tests
+
+IMPLEMENTATION_RULES:
+  - Treat every uploaded .3mf as a managed manufacturing artifact, not a random file blob.
+  - Every project must have an owner, status, and at least one due-date or milestone.
+  - A project can have multiple files and multiple print jobs.
+  - A printer can have many historical jobs but only one active job at a time.
+  - A material may be approved, restricted, experimental, deprecated, or retired.
+  - Keep the catalog model flexible enough to support third-party brands and future materials without schema rewrites.
+  - Design for human clarity first, then reporting accuracy, then automation.
+
+SOURCE_AWARENESS_NOTES:
+  Verified printer model references and selected vendor catalog references were checked against official vendor sources on 2026-04-23.
+  This package ships with seed catalogs and an extensible ingestion architecture.
+  It is not an exhaustive live mirror of every filament SKU sold globally.
+  The system must therefore support:
+    - seeded catalogs
+    - manual CSV imports
+    - admin catalog curation
+    - future vendor adapter pipelines
+
+SUCCESS_DEFINITION:
+  A small to mid-size print engineering team can onboard, create printers, create materials, upload .3mf files, assign build work, and monitor active manufacturing operations in one place without using spreadsheets as the primary operational system.
+
+END_TOON

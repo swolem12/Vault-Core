@@ -1,0 +1,159 @@
+TOON_VERSION: 1.0
+DOC_TYPE: API_CONTRACTS
+DOC_ID: printforge.api_contracts
+TITLE: API and Action Contracts
+
+API_STYLE:
+  Prefer server actions or callable Cloud Functions for privileged mutations.
+  Keep read operations mostly client-driven with Firestore listeners or queries where safe.
+
+CORE_ACTIONS:
+  createProject:
+    input:
+      - title
+      - code
+      - description
+      - ownerUid
+      - priority
+      - dueDate
+      - requestedMaterialId
+    output:
+      - projectId
+      - createdAt
+
+  updateProject:
+    input:
+      - projectId
+      - patch
+    output:
+      - updatedAt
+
+  createFileArtifact:
+    input:
+      - projectId
+      - kind
+      - canonicalName
+    output:
+      - fileArtifactId
+
+  createUploadSession:
+    input:
+      - projectId
+      - fileArtifactId
+      - filename
+      - mimeType
+      - sizeBytes
+    output:
+      - revisionId
+      - storagePath
+      - uploadTokenOrReadyState
+
+  finalizeRevision:
+    input:
+      - revisionId
+    output:
+      - status
+      - checksumSha256
+      - parsedMetadata
+
+  setCurrentRevision:
+    input:
+      - projectId
+      - fileArtifactId
+      - revisionId
+    output:
+      - latestRevisionId
+
+  createBuildJob:
+    input:
+      - projectId
+      - projectFileRevisionId
+      - printerId
+      - materialId
+      - assignedToUid
+      - quantityPlanned
+      - estimatedPrintTimeMinutes
+    output:
+      - buildJobId
+
+  transitionBuildJob:
+    input:
+      - buildJobId
+      - targetStatus
+      - notes
+      - optionalFailureReason
+    output:
+      - updatedStatus
+      - updatedAt
+
+  createPrinter:
+    input:
+      - brand
+      - model
+      - nickname
+      - serialNumber
+      - locationId
+      - capabilityOverrides
+    output:
+      - printerId
+
+  updatePrinterStatus:
+    input:
+      - printerId
+      - operationalStatus
+      - queueStatus
+      - notes
+    output:
+      - updatedAt
+
+  createMaterial:
+    input:
+      - brandId
+      - familyId
+      - displayName
+      - productLine
+      - formFactor
+      - status
+      - metadata
+    output:
+      - materialId
+
+  bulkImportMaterials:
+    input:
+      - rows[]
+      - dryRun
+    output:
+      - createdCount
+      - updatedCount
+      - rejectedCount
+      - conflictRows[]
+
+VALIDATION_RULES:
+  - zod or equivalent validation required for all actions
+  - reject unknown enum states
+  - sanitize strings
+  - enforce org ownership on referenced ids
+  - log activity event on every mutation
+
+AUDIT_RULE:
+  every privileged mutation triggers:
+    - activity event append
+    - updatedAt touch
+    - actorUid assignment
+
+ERROR_SHAPES:
+  - VALIDATION_ERROR
+  - PERMISSION_DENIED
+  - NOT_FOUND
+  - CONFLICT
+  - INVALID_STATE_TRANSITION
+  - UPLOAD_FAILED
+  - PARSE_FAILED_NON_BLOCKING
+  - INTERNAL_ERROR
+
+STATE_TRANSITION_GUARDS:
+  - build job cannot jump from draft straight to completed without privileged override
+  - file revision cannot be current if upload incomplete
+  - printer cannot be available if it has active currentJobId unless privileged repair action resolves stale state
+
+END_TOON

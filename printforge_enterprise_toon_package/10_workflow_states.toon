@@ -1,0 +1,118 @@
+TOON_VERSION: 1.0
+DOC_TYPE: WORKFLOW_STATES
+DOC_ID: printforge.workflow_states
+TITLE: Workflow States, Status Logic, and Operational Rules
+
+PROJECT_LIFECYCLE:
+  intake:
+    meaning: New project entered, not fully scoped
+  scoping:
+    meaning: Requirements, intended material, printer candidates, and ownership being defined
+  design_in_progress:
+    meaning: CAD, slicing, or preparation work is ongoing
+  ready_for_print:
+    meaning: Approved files and planned materials exist
+  queued:
+    meaning: At least one build job is queued
+  printing:
+    meaning: One or more active build jobs running
+  post_processing:
+    meaning: Support removal, finishing, curing, or cleanup
+  validation:
+    meaning: Dimensional or fit validation underway
+  complete:
+    meaning: Work done and closed
+  on_hold:
+    meaning: Temporarily paused
+  cancelled:
+    meaning: intentionally stopped
+
+BUILD_JOB_LIFECYCLE:
+  draft:
+    meaning: Created but not yet committed to queue
+  queued:
+    meaning: waiting for printer slot
+  assigned:
+    meaning: assigned to operator and printer
+  preflight:
+    meaning: machine and material checks happening
+  printing:
+    meaning: active print in progress
+  paused:
+    meaning: paused intentionally or due to issue
+  failed:
+    meaning: print failed
+  completed:
+    meaning: print completed successfully
+  cancelled:
+    meaning: stopped intentionally
+
+BLOCKER_LIFECYCLE:
+  open
+  in_progress
+  waiting
+  resolved
+  closed
+
+RULES:
+  - A project may be ready_for_print only if it has:
+      - ownerUid
+      - at least one current or approved file revision
+      - at least one preferred material or requested material
+  - A build job may move to printing only if:
+      - printer operationalStatus is available or reserved for this job
+      - materialId exists
+      - projectFileRevisionId exists
+  - A project automatically reflects queued if any queued build job exists
+  - A project automatically reflects printing if any active build job exists
+  - A project cannot be complete while open blockers exist unless admin override with logged rationale
+  - A failed build job should prompt:
+      - failure reason
+      - optional photo evidence
+      - retry create shortcut
+
+FAILURE_REASON_ENUMS:
+  - adhesion_failure
+  - warping
+  - spaghetti
+  - nozzle_clog
+  - filament_break
+  - support_failure
+  - layer_shift
+  - resin_fail
+  - operator_abort
+  - machine_fault
+  - unknown
+
+QUICK_ACTIONS:
+  project_card:
+    - open
+    - assign owner
+    - upload file
+    - create build job
+    - block
+    - archive
+  printer_card:
+    - mark available
+    - mark maintenance
+    - assign job
+    - pause queue
+    - open history
+  build_job_row:
+    - start
+    - pause
+    - fail
+    - complete
+    - clone as retry
+    - change printer
+
+SHIFT_HANDOFF_VIEW:
+  Must highlight:
+    - printers currently running
+    - jobs queued next
+    - blocked projects
+    - failures in last 24h
+    - materials needing review
+    - due today / overdue projects
+
+END_TOON

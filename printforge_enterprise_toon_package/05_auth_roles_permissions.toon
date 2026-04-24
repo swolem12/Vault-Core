@@ -1,0 +1,157 @@
+TOON_VERSION: 1.0
+DOC_TYPE: AUTH_ROLES_PERMISSIONS
+DOC_ID: printforge.auth_roles
+TITLE: Authentication, Identity, Roles, and Permissions
+
+AUTHN_STACK:
+  - Firebase Authentication
+  - Google sign-in
+  - optional future MFA
+  - optional invite-only domain allowlists
+
+WHY_GOOGLE_SIGN_IN:
+  - fast onboarding
+  - low friction
+  - identity consistency
+  - easy profile bootstrap for internal teams
+
+USER_BOOTSTRAP_FLOW:
+  - user signs in with Google
+  - if first login, create users/{uid}
+  - assign default role = viewer unless domain auto mapping or admin approval rules elevate
+  - attach user to organization by allowed email domain or invite token
+  - collect optional profile completion fields:
+      - jobTitle
+      - team
+      - shop location
+      - phone extension
+
+ROLES:
+  admin:
+    description:
+      Full system control
+    can:
+      - manage org settings
+      - manage users
+      - manage printers
+      - manage materials
+      - manage project permissions
+      - archive records
+      - run imports
+      - resolve catalog conflicts
+
+  engineering_lead:
+    description:
+      Oversees projects, priorities, and printer allocation
+    can:
+      - create and edit projects
+      - assign owners
+      - approve file revisions
+      - create build jobs
+      - assign printers
+      - view analytics
+      - create blockers
+
+  engineer:
+    description:
+      Creates and maintains project technical data
+    can:
+      - create projects
+      - upload files
+      - edit own projects
+      - propose materials
+      - create build jobs
+      - comment and update statuses
+
+  operator:
+    description:
+      Runs printers and updates execution status
+    can:
+      - view projects
+      - view approved files
+      - update printer status
+      - start pause complete fail build jobs
+      - upload print evidence photos
+      - log material used
+
+  viewer:
+    description:
+      Read-only stakeholder access
+    can:
+      - view projects
+      - view printers
+      - view dashboards
+      - comment if enabled
+
+PERMISSION_MATRIX:
+  project_create:
+    - admin
+    - engineering_lead
+    - engineer
+  project_edit_any:
+    - admin
+    - engineering_lead
+  project_edit_owned:
+    - engineer
+  project_archive:
+    - admin
+    - engineering_lead
+  printer_manage:
+    - admin
+    - engineering_lead
+  material_manage:
+    - admin
+  material_propose:
+    - engineering_lead
+    - engineer
+  buildjob_run:
+    - admin
+    - engineering_lead
+    - engineer
+    - operator
+  file_upload:
+    - admin
+    - engineering_lead
+    - engineer
+  file_approve_current:
+    - admin
+    - engineering_lead
+  analytics_view:
+    - admin
+    - engineering_lead
+    - viewer
+    - operator
+
+FIRESTORE_RULES_INTENT:
+  - enforce org boundary
+  - enforce role-based writes
+  - restrict high-risk admin operations
+  - use Cloud Functions for trusted state transitions where business rules are complex
+
+ORG_MEMBERSHIP_MODEL:
+  organization membership should be explicit, not inferred on every request
+  recommended document:
+    organizations/{orgId}/members/{uid}
+  fields:
+    - uid
+    - role
+    - active
+    - approvedAt
+    - approvedBy
+    - teamId
+
+SESSION_AND_AUDIT:
+  - store lastSeenAt
+  - append activity event for significant changes
+  - track actorUid for every mutable operation
+  - support soft-delete for important entities
+
+SECURITY_ENHANCEMENTS_FUTURE:
+  - Google Workspace domain allowlists
+  - invite-only org membership
+  - MFA for admin users
+  - IP allowlist for production environments
+  - signed exports
+  - immutable audit logs to BigQuery or GCS
+
+END_TOON
